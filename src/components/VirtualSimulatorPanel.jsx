@@ -1,13 +1,32 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Map,
   Box,
   RotateCcw,
   CheckCircle2,
   Hand,
-  Monitor
+  Monitor,
+  Wrench,
+  Bot,
+  Flag,
+  BrickWall,
+  ShieldAlert,
+  Palette,
+  PenTool,
+  Eraser,
+  Trash2,
+  ImagePlus,
+  RotateCw
 } from 'lucide-react';
 import * as THREE from 'three';
+
+const PATCH_COLORS = [
+  { name: 'RED', label: 'Đỏ (9)', hex: '#ef4444', reflection: 65 },
+  { name: 'YELLOW', label: 'Vàng (7)', hex: '#eab308', reflection: 85 },
+  { name: 'GREEN', label: 'Xanh lá (6)', hex: '#22c55e', reflection: 52 },
+  { name: 'BLUE', label: 'Xanh dương (3)', hex: '#3b82f6', reflection: 42 },
+  { name: 'BLACK', label: 'Đen (0)', hex: '#0f172a', reflection: 12 }
+];
 
 export default function VirtualSimulatorPanel({
   simMode,
@@ -18,11 +37,222 @@ export default function VirtualSimulatorPanel({
   onResetSimulator,
   telemetry,
   missionCompleted,
-  onManualNudgeArm
+  onManualNudgeArm,
+  arenaConfig,
+  onUpdateArenaConfig,
+  onSetStartPose
 }) {
   const canvas2DRef = useRef(null);
   const mount3DRef = useRef(null);
   const sceneObjectsRef = useRef(null);
+  const bgImageCacheRef = useRef({ src: '', img: null });
+
+  // Chế độ Thiết kế Sa bàn trực tiếp trên Canvas 2D
+  const [isEditingArena, setIsEditingArena] = useState(false);
+  const [editorTool, setEditorTool] = useState('draw_line'); // 'start_pose' | 'draw_line' | 'goal' | 'obstacle' | 'wall_h' | 'wall_v' | 'color_patch' | 'eraser'
+  const [selectedPatchColor, setSelectedPatchColor] = useState(PATCH_COLORS[0]);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const currentLineRef = useRef([]);
+
+  const safeArena = arenaConfig || {
+    startPose: { x: 75, y: 132, angle: 0 },
+    backgroundUrl: '',
+    lines: [],
+    walls: [],
+    obstacles: [],
+    goals: [],
+    colorPatches: []
+  };
+
+  // Tải ảnh nền sa bàn tùy chỉnh (nếu có)
+  useEffect(() => {
+    if (!safeArena.backgroundUrl) {
+      bgImageCacheRef.current = { src: '', img: null };
+      return;
+    }
+    if (bgImageCacheRef.current.src !== safeArena.backgroundUrl) {
+      const img = new Image();
+      img.onload = () => {
+        bgImageCacheRef.current = { src: safeArena.backgroundUrl, img };
+      };
+      img.src = safeArena.backgroundUrl;
+    }
+  }, [safeArena.backgroundUrl]);
+
+  // Chuyển đổi tọa độ chuột sang tọa độ Canvas (520 x 265)
+  const getCanvasCoords = (e) => {
+    const canvas = canvas2DRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    return {
+      x: Math.round((e.clientX - rect.left) * scaleX),
+      y: Math.round((e.clientY - rect.top) * scaleY)
+    };
+  };
+
+  const handleCanvasPointerDown = (e) => {
+    if (!isEditingArena || simMode !== '2D' || !onUpdateArenaConfig) return;
+    const pt = getCanvasCoords(e);
+
+    if (editorTool === 'start_pose') {
+      const nextStart = {
+        x: pt.x,
+        y: pt.y,
+        angle: safeArena.startPose?.angle || 0
+      };
+      onUpdateArenaConfig({
+        ...safeArena,
+        startPose: nextStart
+      });
+      if (onSetStartPose) onSetStartPose(nextStart);
+      return;
+    }
+
+    if (editorTool === 'draw_line') {
+      setIsDrawing(true);
+      currentLineRef.current = [pt];
+      return;
+    }
+
+    if (editorTool === 'goal') {
+      const newGoal = {
+        id: `goal_${Date.now()}`,
+        x: pt.x - 32,
+        y: pt.y - 26,
+        w: 64,
+        h: 52,
+        label: 'GOAL'
+      };
+      onUpdateArenaConfig({
+        ...safeArena,
+        goals: [...(safeArena.goals || []), newGoal]
+      });
+      return;
+    }
+
+    if (editorTool === 'obstacle') {
+      const newObs = {
+        id: `obs_${Date.now()}`,
+        x: pt.x - 18,
+        y: pt.y - 24,
+        w: 36,
+        h: 48,
+        label: 'OBSTACLE'
+      };
+      onUpdateArenaConfig({
+        ...safeArena,
+        obstacles: [...(safeArena.obstacles || []), newObs]
+      });
+      return;
+    }
+
+    if (editorTool === 'wall_h') {
+      const newWall = {
+        id: `wall_${Date.now()}`,
+        x: pt.x - 45,
+        y: pt.y - 6,
+        w: 90,
+        h: 12
+      };
+      onUpdateArenaConfig({
+        ...safeArena,
+        walls: [...(safeArena.walls || []), newWall]
+      });
+      return;
+    }
+
+    if (editorTool === 'wall_v') {
+      const newWall = {
+        id: `wall_${Date.now()}`,
+        x: pt.x - 6,
+        y: pt.y - 45,
+        w: 12,
+        h: 90
+      };
+      onUpdateArenaConfig({
+        ...safeArena,
+        walls: [...(safeArena.walls || []), newWall]
+      });
+      return;
+    }
+
+    if (editorTool === 'color_patch') {
+      const newPatch = {
+        id: `patch_${Date.now()}`,
+        x: pt.x - 16,
+        y: pt.y - 28,
+        w: 32,
+        h: 56,
+        color: selectedPatchColor.name,
+        hex: selectedPatchColor.hex,
+        reflection: selectedPatchColor.reflection
+      };
+      onUpdateArenaConfig({
+        ...safeArena,
+        colorPatches: [...(safeArena.colorPatches || []), newPatch]
+      });
+      return;
+    }
+
+    if (editorTool === 'eraser') {
+      const hitRect = (r) =>
+        pt.x >= r.x && pt.x <= r.x + r.w && pt.y >= r.y && pt.y <= r.y + r.h;
+      const hitLine = (line) =>
+        line.points.some((p) => Math.hypot(p.x - pt.x, p.y - pt.y) < 18);
+
+      onUpdateArenaConfig({
+        ...safeArena,
+        goals: (safeArena.goals || []).filter((g) => !hitRect(g)),
+        obstacles: (safeArena.obstacles || []).filter((o) => !hitRect(o)),
+        walls: (safeArena.walls || []).filter((w) => !hitRect(w)),
+        colorPatches: (safeArena.colorPatches || []).filter((c) => !hitRect(c)),
+        lines: (safeArena.lines || []).filter((l) => !hitLine(l))
+      });
+    }
+  };
+
+  const handleCanvasPointerMove = (e) => {
+    if (!isDrawing || editorTool !== 'draw_line') return;
+    const pt = getCanvasCoords(e);
+    const pts = currentLineRef.current;
+    const last = pts[pts.length - 1];
+    if (!last || Math.hypot(pt.x - last.x, pt.y - last.y) >= 6) {
+      currentLineRef.current = [...pts, pt];
+    }
+  };
+
+  const handleCanvasPointerUp = () => {
+    if (!isDrawing) return;
+    setIsDrawing(false);
+    if (currentLineRef.current.length >= 2 && onUpdateArenaConfig) {
+      const newLine = {
+        id: `line_${Date.now()}`,
+        points: currentLineRef.current,
+        color: '#0f172a',
+        width: 14
+      };
+      onUpdateArenaConfig({
+        ...safeArena,
+        lines: [...(safeArena.lines || []), newLine]
+      });
+    }
+    currentLineRef.current = [];
+  };
+
+  const handleUploadBackgroundMat = (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !onUpdateArenaConfig) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      onUpdateArenaConfig({
+        ...safeArena,
+        backgroundUrl: String(ev.target?.result || '')
+      });
+    };
+    reader.readAsDataURL(file);
+  };
 
   useEffect(() => {
     if (simMode !== '2D') return;
@@ -34,26 +264,30 @@ export default function VirtualSimulatorPanel({
 
     ctx.clearRect(0, 0, W, H);
 
-    // 1. Vẽ nền sa bàn
+    // 1. Vẽ nền sa bàn (Hoặc ảnh Thảm thi đấu FLL/WRO tùy chỉnh)
     ctx.fillStyle = '#f8fafc';
     ctx.fillRect(0, 0, W, H);
 
-    ctx.strokeStyle = '#e2e8f0';
-    ctx.lineWidth = 1;
-    for (let x = 0; x < W; x += 25) {
-      ctx.beginPath();
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, H);
-      ctx.stroke();
-    }
-    for (let y = 0; y < H; y += 25) {
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(W, y);
-      ctx.stroke();
+    if (bgImageCacheRef.current.img && safeArena.backgroundUrl) {
+      ctx.drawImage(bgImageCacheRef.current.img, 0, 0, W, H);
+    } else {
+      ctx.strokeStyle = '#e2e8f0';
+      ctx.lineWidth = 1;
+      for (let x = 0; x < W; x += 25) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, H);
+        ctx.stroke();
+      }
+      for (let y = 0; y < H; y += 25) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(W, y);
+        ctx.stroke();
+      }
     }
 
-    // 2. Vẽ chi tiết bản đồ
+    // 2. Vẽ các bản đồ mẫu (Preset Maps)
     if (mapType === 'line_track') {
       ctx.strokeStyle = '#0f172a';
       ctx.lineWidth = 16;
@@ -92,7 +326,7 @@ export default function VirtualSimulatorPanel({
       ctx.fillStyle = '#15803d';
       ctx.font = 'bold 11px Inter';
       ctx.fillText('GOAL', 228, 216);
-    } else {
+    } else if (mapType === 'sensor_lab') {
       const colors = [
         { hex: '#ef4444', name: 'RED (9)' },
         { hex: '#eab308', name: 'YELLOW (7)' },
@@ -109,11 +343,150 @@ export default function VirtualSimulatorPanel({
 
       ctx.fillStyle = '#dc2626';
       ctx.fillRect(435, H / 2 - 30, 32, 60);
+    } else if (mapType === 'slalom_obstacles') {
+      // Sa bàn Zíc-zắc Né 3 Trụ Vật Cản (Slalom)
+      const pillars = [
+        { x: 185, y: 110, label: 'TRỤ 1' },
+        { x: 295, y: 155, label: 'TRỤ 2' },
+        { x: 390, y: 105, label: 'TRỤ 3' }
+      ];
+      pillars.forEach((p) => {
+        ctx.fillStyle = '#ef4444';
+        ctx.fillRect(p.x - 16, p.y - 20, 32, 40);
+        ctx.strokeStyle = '#991b1b';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(p.x - 16, p.y - 20, 32, 40);
+        ctx.fillStyle = '#b91c1c';
+        ctx.font = 'bold 9px Inter';
+        ctx.fillText(p.label, p.x - 14, p.y - 25);
+      });
+      ctx.fillStyle = 'rgba(34, 197, 94, 0.28)';
+      ctx.fillRect(445, 95, 58, 75);
+      ctx.strokeStyle = '#16a34a';
+      ctx.strokeRect(445, 95, 58, 75);
+      ctx.fillStyle = '#15803d';
+      ctx.font = 'bold 11px Inter';
+      ctx.fillText('GOAL', 458, 136);
+    } else if (mapType === 'fll_challenge') {
+      // Sa bàn Thi đấu Đa nhiệm FLL (Base + 3 Trạm Nhiệm vụ M01, M02, M03)
+      ctx.fillStyle = 'rgba(59, 130, 246, 0.16)';
+      ctx.fillRect(25, 165, 95, 85);
+      ctx.strokeStyle = '#2563eb';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(25, 165, 95, 85);
+      ctx.fillStyle = '#1d4ed8';
+      ctx.font = 'bold 10px Inter';
+      ctx.fillText('LAUNCH AREA', 36, 242);
+
+      // Đường line dẫn hướng FLL
+      ctx.strokeStyle = '#0f172a';
+      ctx.lineWidth = 10;
+      ctx.beginPath();
+      ctx.moveTo(120, 205);
+      ctx.lineTo(250, 205);
+      ctx.lineTo(250, 75);
+      ctx.lineTo(420, 75);
+      ctx.stroke();
+
+      // Trạm M01, M02, M03
+      const stations = [
+        { x: 225, y: 30, w: 55, h: 36, color: '#eab308', name: 'M01: SOLAR' },
+        { x: 425, y: 52, w: 65, h: 48, color: '#22c55e', name: 'M02: DROP ZONE' },
+        { x: 375, y: 175, w: 65, h: 55, color: '#ef4444', name: 'M03: CRANE' }
+      ];
+      stations.forEach((st) => {
+        ctx.fillStyle = st.color + '33';
+        ctx.fillRect(st.x, st.y, st.w, st.h);
+        ctx.strokeStyle = st.color;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(st.x, st.y, st.w, st.h);
+        ctx.fillStyle = '#0f172a';
+        ctx.font = 'bold 9px Inter';
+        ctx.fillText(st.name, st.x + 4, st.y + st.h / 2 + 3);
+      });
+    } else if (mapType === 'loop_circuit') {
+      // Đường đua Khép kín Dò Line Tuần hoàn
+      ctx.strokeStyle = '#0f172a';
+      ctx.lineWidth = 16;
+      ctx.beginPath();
+      ctx.roundRect(75, 45, 370, 175, 65);
+      ctx.stroke();
     }
 
-    // 3. Đường vết di chuyển
+    // 3. Vẽ các đối tượng Tùy chỉnh (Custom Arena Objects) do Giáo viên / Học sinh thiết kế thêm
+    // 3a. Đường Line tự vẽ
+    (safeArena.lines || []).forEach((line) => {
+      if (!line.points || line.points.length < 2) return;
+      ctx.strokeStyle = line.color || '#0f172a';
+      ctx.lineWidth = line.width || 14;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      line.points.forEach((pt, idx) => {
+        if (idx === 0) ctx.moveTo(pt.x, pt.y);
+        else ctx.lineTo(pt.x, pt.y);
+      });
+      ctx.stroke();
+    });
+
+    // Đường đang kéo chuột vẽ trực tiếp
+    if (isDrawing && currentLineRef.current.length >= 2) {
+      ctx.strokeStyle = '#0f172a';
+      ctx.lineWidth = 14;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      currentLineRef.current.forEach((pt, idx) => {
+        if (idx === 0) ctx.moveTo(pt.x, pt.y);
+        else ctx.lineTo(pt.x, pt.y);
+      });
+      ctx.stroke();
+    }
+
+    // 3b. Dải màu cảm biến (Color Patches)
+    (safeArena.colorPatches || []).forEach((patch) => {
+      ctx.fillStyle = patch.hex || '#ef4444';
+      ctx.fillRect(patch.x, patch.y, patch.w, patch.h);
+      ctx.strokeStyle = '#0f172a';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(patch.x, patch.y, patch.w, patch.h);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 9px Inter';
+      ctx.fillText(patch.color, patch.x + 3, patch.y + patch.h / 2 + 3);
+    });
+
+    // 3c. Ô Đích (Goals)
+    (safeArena.goals || []).forEach((goal) => {
+      ctx.fillStyle = 'rgba(34, 197, 94, 0.28)';
+      ctx.fillRect(goal.x, goal.y, goal.w, goal.h);
+      ctx.strokeStyle = '#16a34a';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(goal.x, goal.y, goal.w, goal.h);
+      ctx.fillStyle = '#15803d';
+      ctx.font = 'bold 11px Inter';
+      ctx.fillText(goal.label || 'GOAL', goal.x + 14, goal.y + goal.h / 2 + 4);
+    });
+
+    // 3d. Tường Mê cung (Walls)
+    (safeArena.walls || []).forEach((wall) => {
+      ctx.fillStyle = '#334155';
+      ctx.fillRect(wall.x, wall.y, wall.w, wall.h);
+    });
+
+    // 3e. Vật cản Siêu âm (Obstacles)
+    (safeArena.obstacles || []).forEach((obs) => {
+      ctx.fillStyle = '#ef4444';
+      ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
+      ctx.strokeStyle = '#991b1b';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(obs.x, obs.y, obs.w, obs.h);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 8px Inter';
+      ctx.fillText('OBS', obs.x + 8, obs.y + obs.h / 2 + 3);
+    });
+
+    // 4. Đường vết di chuyển của Robot
     if (robotPose.trail && robotPose.trail.length > 1) {
-      ctx.strokeStyle = 'rgba(234, 51, 150, 0.5)';
+      ctx.strokeStyle = 'rgba(234, 51, 150, 0.55)';
       ctx.lineWidth = 3;
       ctx.setLineDash([4, 4]);
       ctx.beginPath();
@@ -125,7 +498,7 @@ export default function VirtualSimulatorPanel({
       ctx.setLineDash([]);
     }
 
-    // 4. Vẽ Robot LEGO SPIKE Prime với nhãn cổng A, B, D, E rõ ràng cho Học sinh
+    // 5. Vẽ Robot LEGO SPIKE Prime với nhãn cổng A, B, D, E rõ ràng cho Học sinh
     ctx.save();
     ctx.translate(robotPose.x, robotPose.y);
     ctx.rotate((robotPose.angle * Math.PI) / 180);
@@ -168,7 +541,7 @@ export default function VirtualSimulatorPanel({
     ctx.fillText('D/E', 15, 2.5);
 
     ctx.restore();
-  }, [simMode, mapType, robotPose]);
+  }, [simMode, mapType, robotPose, safeArena, isDrawing]);
 
   // Không gian 3D (Three.js) cho các bài Cơ cấu Nâng, Hạ, Kéo, Thả
   useEffect(() => {
@@ -344,17 +717,21 @@ export default function VirtualSimulatorPanel({
   return (
     <div className="flex flex-col h-full bg-slate-900/95 border border-slate-800 rounded-2xl overflow-hidden">
       {/* HEADER KHU VỰC 3: THANH CÔNG CỤ SA BÀN CỐ ĐỊNH 1 DÒNG (H-11), KHÔNG BAO GIỜ BỊ ÉP DỌC */}
-      <div className="h-11 shrink-0 flex items-center justify-between gap-2 px-3 bg-slate-950 border-b border-slate-800 whitespace-nowrap overflow-x-auto">
-        <div className="flex items-center gap-2 shrink-0">
+      <div className="h-11 shrink-0 flex items-center justify-between gap-1.5 px-2.5 bg-slate-950 border-b border-slate-800 whitespace-nowrap overflow-x-auto">
+        <div className="flex items-center gap-1.5 shrink-0">
           {simMode === '2D' ? (
             <select
               value={mapType}
               onChange={(e) => setMapType(e.target.value)}
-              className="bg-slate-900 text-slate-100 text-[11px] font-bold h-7 px-2.5 rounded-lg border border-slate-700 focus:outline-none cursor-pointer shrink-0 whitespace-nowrap"
+              className="bg-slate-900 text-slate-100 text-[11px] font-bold h-7 px-2 rounded-lg border border-slate-700 focus:outline-none cursor-pointer shrink-0 whitespace-nowrap"
             >
               <option value="line_track">Sa bàn 1: Dò Line & Vật cản</option>
               <option value="maze">Sa bàn 2: Mê cung Góc vuông</option>
               <option value="sensor_lab">Sa bàn 3: Dải màu Cảm biến</option>
+              <option value="slalom_obstacles">Sa bàn 4: Zíc-zắc Né 3 Trụ</option>
+              <option value="fll_challenge">Sa bàn 5: Thảm Thi Đấu FLL</option>
+              <option value="loop_circuit">Sa bàn 6: Đường Đua Khép Kín</option>
+              <option value="custom_blank">Sa bàn 7: Tự Thiết Kế (Trống)</option>
             </select>
           ) : (
             <span className="bg-orange-500/20 text-orange-300 border border-orange-500/40 h-7 px-2.5 rounded-lg text-[11px] font-bold inline-flex items-center shrink-0 whitespace-nowrap">
@@ -362,9 +739,25 @@ export default function VirtualSimulatorPanel({
             </span>
           )}
 
-          {/* Ô trạng thái cố định kích thước 1 dòng, không làm thay đổi chiều cao thanh công cụ */}
+          {simMode === '2D' && (
+            <button
+              type="button"
+              onClick={() => setIsEditingArena((v) => !v)}
+              className={`inline-flex items-center gap-1 h-7 px-2.5 rounded-lg text-[11px] font-bold border transition shrink-0 whitespace-nowrap ${
+                isEditingArena
+                  ? 'bg-amber-400 text-slate-950 border-amber-300 shadow'
+                  : 'bg-slate-900 hover:bg-slate-800 text-amber-300 border-amber-500/40'
+              }`}
+              title="Bật công cụ tự vẽ đường Line, đặt Tường, Vật cản, Ô Đích và vị trí Robot trên Sa bàn"
+            >
+              <Wrench className="w-3.5 h-3.5 shrink-0" />
+              <span>{isEditingArena ? '✓ Đóng Thiết Kế' : '🛠 Thiết Kế Sa Bàn'}</span>
+            </button>
+          )}
+
+          {/* Ô trạng thái cố định kích thước 1 dòng */}
           <span
-            className={`inline-flex items-center gap-1 h-7 px-2.5 rounded-full text-[11px] font-bold border shrink-0 whitespace-nowrap ${
+            className={`inline-flex items-center gap-1 h-7 px-2 rounded-full text-[11px] font-bold border shrink-0 whitespace-nowrap ${
               missionCompleted
                 ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
                 : 'bg-slate-900 text-slate-400 border-slate-800'
@@ -375,7 +768,7 @@ export default function VirtualSimulatorPanel({
                 missionCompleted ? 'text-emerald-400' : 'text-slate-600'
               }`}
             />
-            <span>{missionCompleted ? 'Hoàn thành! Sẵn sàng kết nối' : 'Sẵn sàng chạy thử'}</span>
+            <span>{missionCompleted ? 'Hoàn thành!' : 'Sẵn sàng'}</span>
           </span>
         </div>
 
@@ -383,31 +776,31 @@ export default function VirtualSimulatorPanel({
           <div className="flex items-center gap-1 bg-slate-900 p-0.5 rounded-lg border border-slate-800 shrink-0">
             <button
               onClick={() => setSimMode('2D')}
-              className={`inline-flex items-center gap-1 h-6 px-2.5 rounded text-[11px] font-bold transition shrink-0 whitespace-nowrap ${
+              className={`inline-flex items-center gap-1 h-6 px-2 rounded text-[11px] font-bold transition shrink-0 whitespace-nowrap ${
                 simMode === '2D'
                   ? 'bg-emerald-400 text-slate-950'
                   : 'text-slate-400 hover:text-white'
               }`}
             >
               <Map className="w-3.5 h-3.5 shrink-0" />
-              <span>Sa bàn 2D</span>
+              <span>2D</span>
             </button>
             <button
               onClick={() => setSimMode('3D')}
-              className={`inline-flex items-center gap-1 h-6 px-2.5 rounded text-[11px] font-bold transition shrink-0 whitespace-nowrap ${
+              className={`inline-flex items-center gap-1 h-6 px-2 rounded text-[11px] font-bold transition shrink-0 whitespace-nowrap ${
                 simMode === '3D'
                   ? 'bg-orange-500 text-slate-950'
                   : 'text-slate-400 hover:text-white'
               }`}
             >
               <Box className="w-3.5 h-3.5 shrink-0" />
-              <span>Không gian 3D</span>
+              <span>3D</span>
             </button>
           </div>
 
           <button
             onClick={onResetSimulator}
-            className="inline-flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-bold h-7 px-2.5 rounded-lg border border-slate-700 shrink-0 whitespace-nowrap"
+            className="inline-flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-bold h-7 px-2 rounded-lg border border-slate-700 shrink-0 whitespace-nowrap"
           >
             <RotateCcw className="w-3 h-3 shrink-0" />
             <span>Reset</span>
@@ -422,21 +815,220 @@ export default function VirtualSimulatorPanel({
             ref={canvas2DRef}
             width={520}
             height={265}
-            className="w-full h-full object-contain bg-slate-100"
+            onPointerDown={handleCanvasPointerDown}
+            onPointerMove={handleCanvasPointerMove}
+            onPointerUp={handleCanvasPointerUp}
+            onPointerLeave={handleCanvasPointerUp}
+            className={`w-full h-full object-contain bg-slate-100 ${
+              isEditingArena ? 'cursor-crosshair ring-2 ring-inset ring-amber-400' : ''
+            }`}
           />
         ) : (
           <div ref={mount3DRef} className="w-full h-full cursor-grab active:cursor-grabbing" />
         )}
 
-        {/* Thông báo hoàn thành nhiệm vụ dạng Overlay nổi cố định góc dưới phải, không làm nhảy kích thước Sa bàn */}
-        {missionCompleted && simMode === '2D' && (
+        {/* THANH CÔNG CỤ NỔI KHI BẬT CHẾ ĐỘ THIẾT KẾ SA BÀN (NẰM NỔI BÊN TRONG SA BÀN, KHÔNG LÀM NHẢY KÍCH THƯỚC) */}
+        {isEditingArena && simMode === '2D' && (
+          <div className="absolute bottom-2 left-2 right-2 bg-slate-950/95 backdrop-blur border border-amber-400/70 rounded-xl p-2 shadow-2xl z-20 flex flex-col gap-1.5">
+            <div className="flex items-center justify-between gap-1 overflow-x-auto whitespace-nowrap pb-0.5">
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setEditorTool('start_pose')}
+                  className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold ${
+                    editorTool === 'start_pose'
+                      ? 'bg-amber-400 text-slate-950'
+                      : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
+                  }`}
+                >
+                  <Bot className="w-3 h-3" />
+                  Đặt Robot
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextStart = {
+                      x: safeArena.startPose?.x ?? robotPose.x,
+                      y: safeArena.startPose?.y ?? robotPose.y,
+                      angle: ((safeArena.startPose?.angle ?? robotPose.angle) + 45) % 360
+                    };
+                    onUpdateArenaConfig({ ...safeArena, startPose: nextStart });
+                    if (onSetStartPose) onSetStartPose(nextStart);
+                  }}
+                  className="inline-flex items-center gap-0.5 px-1.5 py-1 rounded text-[10px] font-bold bg-slate-800 text-amber-300 hover:bg-slate-700"
+                  title="Xoay hướng xuất phát của Robot thêm 45 độ"
+                >
+                  <RotateCw className="w-3 h-3" />
+                  45°
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setEditorTool('draw_line')}
+                  className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold ${
+                    editorTool === 'draw_line'
+                      ? 'bg-amber-400 text-slate-950'
+                      : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
+                  }`}
+                >
+                  <PenTool className="w-3 h-3" />
+                  Vẽ Line Đen
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setEditorTool('goal')}
+                  className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold ${
+                    editorTool === 'goal'
+                      ? 'bg-emerald-400 text-slate-950'
+                      : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
+                  }`}
+                >
+                  <Flag className="w-3 h-3" />
+                  + Ô Đích (GOAL)
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setEditorTool('obstacle')}
+                  className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold ${
+                    editorTool === 'obstacle'
+                      ? 'bg-rose-500 text-white'
+                      : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
+                  }`}
+                >
+                  <ShieldAlert className="w-3 h-3" />
+                  + Vật Cản (E)
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setEditorTool('wall_h')}
+                  className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold ${
+                    editorTool === 'wall_h'
+                      ? 'bg-amber-400 text-slate-950'
+                      : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
+                  }`}
+                >
+                  <BrickWall className="w-3 h-3" />
+                  + Tường Ngang
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setEditorTool('wall_v')}
+                  className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold ${
+                    editorTool === 'wall_v'
+                      ? 'bg-amber-400 text-slate-950'
+                      : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
+                  }`}
+                >
+                  <BrickWall className="w-3 h-3 rotate-90" />
+                  + Tường Dọc
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setEditorTool('color_patch')}
+                  className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold ${
+                    editorTool === 'color_patch'
+                      ? 'bg-cyan-400 text-slate-950'
+                      : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
+                  }`}
+                >
+                  <Palette className="w-3 h-3" />
+                  + Vạch Màu (D)
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setEditorTool('eraser')}
+                  className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold ${
+                    editorTool === 'eraser'
+                      ? 'bg-rose-600 text-white'
+                      : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
+                  }`}
+                >
+                  <Eraser className="w-3 h-3" />
+                  Xóa 1 Vật
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between text-[10px] text-slate-300 border-t border-slate-800 pt-1">
+              <div className="flex items-center gap-2">
+                {editorTool === 'color_patch' ? (
+                  <div className="flex items-center gap-1">
+                    <span>Chọn màu:</span>
+                    {PATCH_COLORS.map((c) => (
+                      <button
+                        key={c.name}
+                        type="button"
+                        onClick={() => setSelectedPatchColor(c)}
+                        className={`px-1.5 py-0.5 rounded text-[9px] font-bold text-white ${
+                          selectedPatchColor.name === c.name ? 'ring-2 ring-white' : 'opacity-70'
+                        }`}
+                        style={{ backgroundColor: c.hex }}
+                      >
+                        {c.name}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <span className="text-amber-300 font-semibold">
+                    {editorTool === 'draw_line'
+                      ? '💡 Giữ và kéo chuột trên Sa bàn để vẽ đường Line đen cho Robot dò line!'
+                      : editorTool === 'start_pose'
+                      ? '💡 Nhấn vào vị trí bất kỳ trên Sa bàn để đặt điểm xuất phát của Robot!'
+                      : '💡 Nhấn chuột trực tiếp lên mặt Sa bàn để đặt / xóa vật thể!'}
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-1.5 shrink-0">
+                <label className="cursor-pointer inline-flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-cyan-300 px-2 py-0.5 rounded font-bold border border-slate-700">
+                  <ImagePlus className="w-3 h-3" />
+                  <span>Tải ảnh Thảm FLL</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleUploadBackgroundMat}
+                    className="hidden"
+                  />
+                </label>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    onUpdateArenaConfig({
+                      startPose: { x: 75, y: 132, angle: 0 },
+                      backgroundUrl: '',
+                      lines: [],
+                      walls: [],
+                      obstacles: [],
+                      goals: [],
+                      colorPatches: []
+                    })
+                  }
+                  className="inline-flex items-center gap-1 bg-rose-950 hover:bg-rose-900 text-rose-300 px-2 py-0.5 rounded font-bold border border-rose-800"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  Xóa hết vật vẽ thêm
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Thông báo hoàn thành nhiệm vụ dạng Overlay nổi cố định góc dưới phải */}
+        {missionCompleted && simMode === '2D' && !isEditingArena && (
           <div className="absolute bottom-2.5 right-3 pointer-events-none bg-emerald-950/90 backdrop-blur border border-emerald-400/60 text-emerald-200 px-3 py-1 rounded-full shadow-lg flex items-center gap-1.5 text-[11px] font-bold">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
             <span>Hoàn thành nhiệm vụ! Sẵn sàng kết nối Robot thật</span>
           </div>
         )}
 
-        {/* Cửa sổ nổi Màn hình Hiển thị (Display Extension - Mục 17 trong tài liệu) */}
+        {/* Cửa sổ nổi Màn hình Hiển thị (Display Extension) */}
         {telemetry.displayMessage && (
           <div className="absolute top-2.5 right-3 pointer-events-none bg-teal-950/95 border-2 border-teal-400 text-teal-100 px-3 py-1.5 rounded-xl shadow-lg flex items-center gap-2 text-xs font-extrabold">
             <Monitor className="w-4 h-4 text-teal-300" />

@@ -18,7 +18,13 @@ import {
   Trash2,
   MousePointerClick,
   Cog,
-  Layers
+  Layers,
+  Save,
+  Download,
+  Upload,
+  RotateCcw,
+  FilePlus2,
+  Settings2
 } from 'lucide-react';
 import SpikeBlockItem, { SpikeWheelBadge } from './components/SpikeBlockItem';
 import VirtualSimulatorPanel from './components/VirtualSimulatorPanel';
@@ -47,10 +53,54 @@ const COLOR_SWATCHES = [
   { id: 10, name: 'WHITE', label: '(10) White', hex: '#f8fafc', reflection: 98 }
 ];
 
+const EMPTY_ARENA_CONFIG = {
+  startPose: null,
+  lines: [],
+  goals: [],
+  obstacles: [],
+  walls: [],
+  colorPatches: [],
+  backgroundImage: ''
+};
+
+const MISSIONS_STORAGE_KEY = 'spike_prime_custom_missions_v2';
+
+function loadInitialMissions() {
+  try {
+    const raw = localStorage.getItem(MISSIONS_STORAGE_KEY);
+    if (!raw) return CURRICULUM_LESSONS;
+    const saved = JSON.parse(raw);
+    if (!Array.isArray(saved) || saved.length === 0) return CURRICULUM_LESSONS;
+    // Merge any newly added default lessons that weren't in saved list
+    const savedIds = new Set(saved.map((m) => m.id));
+    const missingDefaults = CURRICULUM_LESSONS.filter((d) => !savedIds.has(d.id));
+    return [...saved, ...missingDefaults];
+  } catch {
+    return CURRICULUM_LESSONS;
+  }
+}
+
 export default function App() {
-  const [currentLessonId, setCurrentLessonId] = useState(CURRICULUM_LESSONS[0].id);
+  const [missions, setMissions] = useState(loadInitialMissions);
+  const [currentLessonId, setCurrentLessonId] = useState(() => loadInitialMissions()[0]?.id || CURRICULUM_LESSONS[0].id);
   const currentLesson =
-    CURRICULUM_LESSONS.find((l) => l.id === currentLessonId) || CURRICULUM_LESSONS[0];
+    missions.find((l) => l.id === currentLessonId) || missions[0] || CURRICULUM_LESSONS[0];
+
+  const [showMissionStudioModal, setShowMissionStudioModal] = useState(false);
+  const missionFileInputRef = useRef(null);
+
+  const [arenaConfig, setArenaConfig] = useState(
+    currentLesson.arenaConfig || EMPTY_ARENA_CONFIG
+  );
+
+  // Tự động lưu danh sách nhiệm vụ vào localStorage khi có thay đổi
+  useEffect(() => {
+    try {
+      localStorage.setItem(MISSIONS_STORAGE_KEY, JSON.stringify(missions));
+    } catch {
+      // Ignore storage quota errors
+    }
+  }, [missions]);
 
   const [ports, setPorts] = useState({
     A: 'medium_motor',
@@ -62,7 +112,7 @@ export default function App() {
   });
 
   const [ledMatrix, setLedMatrix] = useState(LED_PATTERNS.SMILE);
-  const [blocks, setBlocks] = useState(CURRICULUM_LESSONS[0].defaultBlocks);
+  const [blocks, setBlocks] = useState(currentLesson.defaultBlocks || CURRICULUM_LESSONS[0].defaultBlocks);
   const [activeBlockId, setActiveBlockId] = useState(null);
   const [isRunning, setIsRunning] = useState(false);
 
@@ -84,8 +134,12 @@ export default function App() {
   const [showShapeGuideModal, setShowShapeGuideModal] = useState(false);
   const [hoveredBlockDesc, setHoveredBlockDesc] = useState(null);
 
-  const [simMode, setSimMode] = useState('2D');
-  const [mapType, setMapType] = useState('sensor_lab');
+  const [simMode, setSimMode] = useState(currentLesson.mode || '2D');
+  const [mapType, setMapType] = useState(
+    currentLesson.mapType && currentLesson.mapType !== '3d_mission'
+      ? currentLesson.mapType
+      : 'sensor_lab'
+  );
   const [buildStepIndex, setBuildStepIndex] = useState(0);
   const [canvasZoom, setCanvasZoom] = useState(100);
   const [copiedPython, setCopiedPython] = useState(false);
@@ -137,7 +191,7 @@ export default function App() {
   });
 
   const [statusLog, setStatusLog] = useState(
-    '💡 Kéo thả khối lệnh từ cột bên trái sang vùng lập trình để ghép chồng lệnh. Nhấn nút [+ Extensions] ở góc dưới trái để bật thêm More Motors, Music, Line Graph, Weather...'
+    '💡 Kéo thả khối lệnh từ cột bên trái sang vùng lập trình. Nhấn "🛠 Thiết Kế Sa Bàn" trên sa bàn hoặc "🎯 Thiết Kế Nhiệm Vụ" ở thanh trên để tự tạo bài tập mới!'
   );
 
   const stopFlagRef = useRef(false);
@@ -380,37 +434,35 @@ export default function App() {
     }
   };
 
-  const handleSelectLesson = (lesson) => {
-    stopFlagRef.current = true;
-    setIsRunning(false);
-    setActiveBlockId(null);
-    setCurrentLessonId(lesson.id);
-    setBlocks(lesson.defaultBlocks);
-    setSimMode(lesson.mode);
-    if (lesson.mapType && lesson.mapType !== '3d_mission') {
-      setMapType(lesson.mapType);
+  const getStartPoseForMap = (targetMap, customArena = arenaConfig) => {
+    if (customArena?.startPose) {
+      return {
+        x: customArena.startPose.x,
+        y: customArena.startPose.y,
+        angle: customArena.startPose.angle || 0
+      };
     }
-    setMissionCompleted(false);
-    resetSimulatorPose(lesson.mapType);
-    setRightRedZoneTab('arena');
-    setStatusLog(`Đã mở "${lesson.title}": ${lesson.objective}`);
+    if (targetMap === 'maze') return { x: 75, y: 88, angle: 0 };
+    if (targetMap === 'fll_challenge') return { x: 65, y: 205, angle: 0 };
+    if (targetMap === 'loop_circuit') return { x: 110, y: 78, angle: 0 };
+    return { x: 75, y: 132, angle: 0 };
   };
 
-  const resetSimulatorPose = (targetMap = mapType) => {
-    const startY = targetMap === 'maze' ? 88 : 132;
+  const resetSimulatorPose = (targetMap = mapType, customArena = arenaConfig) => {
+    const sp = getStartPoseForMap(targetMap, customArena);
     setRobotPose({
-      x: 75,
-      y: startY,
-      angle: 0,
+      x: sp.x,
+      y: sp.y,
+      angle: sp.angle,
       distanceCm: 95,
       armAngle: 35,
       gripperClosed: false,
       cargoGrabbed: false,
-      trail: [{ x: 75, y: startY }]
+      trail: [{ x: sp.x, y: sp.y }]
     });
     setTelemetry((prev) => ({
       ...prev,
-      gyroYaw: 0,
+      gyroYaw: sp.angle,
       displayMessage: '',
       distanceSensor: { cm: 95 },
       motors: {
@@ -420,6 +472,189 @@ export default function App() {
         C: { angle: 35, speed: 0 }
       }
     }));
+  };
+
+  const handleSelectLesson = (lesson) => {
+    stopFlagRef.current = true;
+    setIsRunning(false);
+    setActiveBlockId(null);
+    setCurrentLessonId(lesson.id);
+    setBlocks(lesson.defaultBlocks || [{ id: 'b0', type: 'when_program_starts', params: {} }]);
+    setSimMode(lesson.mode || '2D');
+    const nextMap =
+      lesson.mapType && lesson.mapType !== '3d_mission' ? lesson.mapType : 'sensor_lab';
+    setMapType(nextMap);
+    const nextArena = lesson.arenaConfig || EMPTY_ARENA_CONFIG;
+    setArenaConfig(nextArena);
+    setMissionCompleted(false);
+    resetSimulatorPose(nextMap, nextArena);
+    setRightRedZoneTab('arena');
+    setStatusLog(`Đã mở "${lesson.title}": ${lesson.objective}`);
+  };
+
+  // Cập nhật cấu hình sa bàn trực tiếp vào nhiệm vụ hiện tại
+  const handleUpdateArenaConfig = (updater) => {
+    setArenaConfig((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      setMissions((all) =>
+        all.map((m) => (m.id === currentLessonId ? { ...m, arenaConfig: next } : m))
+      );
+      return next;
+    });
+  };
+
+  const handleSetStartPose = (poseObj) => {
+    setRobotPose((prev) => ({
+      ...prev,
+      x: poseObj.x,
+      y: poseObj.y,
+      angle: poseObj.angle || 0,
+      trail: [{ x: poseObj.x, y: poseObj.y }]
+    }));
+    setTelemetry((prev) => ({
+      ...prev,
+      gyroYaw: poseObj.angle || 0
+    }));
+  };
+
+  // Lưu trạng thái Sa bàn + Chồng lệnh hiện tại vào nhiệm vụ đang chọn
+  const handleSaveCurrentStateToMission = () => {
+    setMissions((prev) =>
+      prev.map((m) =>
+        m.id === currentLessonId
+          ? {
+              ...m,
+              mode: simMode,
+              mapType: simMode === '3D' ? '3d_mission' : mapType,
+              arenaConfig,
+              defaultBlocks: blocks
+            }
+          : m
+      )
+    );
+    playSnapClick(660);
+    setStatusLog(
+      `💾 Đã lưu Sa bàn (${mapType}) và ${blocks.length} khối lệnh vào nhiệm vụ "${currentLesson.title}"!`
+    );
+  };
+
+  // Tạo nhiệm vụ mới linh hoạt
+  const handleCreateNewMission = () => {
+    const newId = `custom_mission_${Date.now()}`;
+    const nextIdx = missions.length + 1;
+    const newMission = {
+      id: newId,
+      isCustom: true,
+      level: `Unit ${nextIdx}: Nhiệm vụ Tự Thiết Kế`,
+      title: `Bài ${nextIdx}: Thử thách Robot Tự Thiết Kế #${nextIdx}`,
+      mode: simMode,
+      mapType: simMode === '3D' ? '3d_mission' : 'custom_blank',
+      winCondition: 'reach_goal',
+      objective:
+        'Điều khiển Robot từ điểm START vượt qua chướng ngại vật để tiến vào vùng Đích GOAL.',
+      steps: [
+        'Bấm nút "🛠 Thiết Kế Sa Bàn" trên sa bàn 2D để vẽ đường line, đặt Đích GOAL hoặc Vật cản.',
+        'Kéo thả các khối lệnh từ cột trái để lập trình cho Robot giải quyết sa bàn.',
+        'Nhấn nút "💾 Lưu Sa Bàn & Code" để lưu lại bài tập cho học sinh.'
+      ],
+      arenaConfig: {
+        startPose: { x: 75, y: 132, angle: 0 },
+        lines: [],
+        goals: [{ id: `g_${Date.now()}`, x: 405, y: 105, w: 62, h: 52, label: 'GOAL' }],
+        obstacles: [{ id: `obs_${Date.now()}`, x: 255, y: 132, r: 16, label: 'OBS 1' }],
+        walls: [],
+        colorPatches: [],
+        backgroundImage: ''
+      },
+      defaultBlocks: [
+        { id: `b0_${Date.now()}`, type: 'when_program_starts', params: {} },
+        { id: `b1_${Date.now()}`, type: 'set_movement_motors', params: { ports: 'A+B' } }
+      ]
+    };
+    setMissions((prev) => [...prev, newMission]);
+    handleSelectLesson(newMission);
+    setStatusLog(`✨ Đã tạo nhiệm vụ mới "${newMission.title}"! Bạn có thể sửa đề bài và thiết kế sa bàn ngay.`);
+  };
+
+  const handleDuplicateMission = (mission) => {
+    const cloneId = `custom_mission_${Date.now()}`;
+    const clone = {
+      ...mission,
+      id: cloneId,
+      isCustom: true,
+      title: `${mission.title} (Bản sao)`,
+      arenaConfig: mission.arenaConfig ? JSON.parse(JSON.stringify(mission.arenaConfig)) : EMPTY_ARENA_CONFIG,
+      defaultBlocks: JSON.parse(JSON.stringify(mission.defaultBlocks || []))
+    };
+    setMissions((prev) => [...prev, clone]);
+    handleSelectLesson(clone);
+    setStatusLog(`📋 Đã nhân bản nhiệm vụ "${clone.title}".`);
+  };
+
+  const handleDeleteMission = (id) => {
+    if (missions.length <= 1) return;
+    const filtered = missions.filter((m) => m.id !== id);
+    setMissions(filtered);
+    if (currentLessonId === id) {
+      handleSelectLesson(filtered[0]);
+    }
+    setStatusLog('🗑 Đã xóa nhiệm vụ.');
+  };
+
+  const handleUpdateMissionField = (field, value) => {
+    setMissions((prev) =>
+      prev.map((m) => (m.id === currentLessonId ? { ...m, [field]: value } : m))
+    );
+    if (field === 'mode') {
+      setSimMode(value);
+    }
+    if (field === 'mapType') {
+      setMapType(value);
+      resetSimulatorPose(value, arenaConfig);
+    }
+  };
+
+  const handleExportMissionsJson = () => {
+    const dataStr = JSON.stringify(missions, null, 2);
+    const blob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `spike-prime-missions-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setStatusLog('📥 Đã xuất toàn bộ bộ Nhiệm vụ & Sa bàn ra file .JSON!');
+  };
+
+  const handleImportMissionsJson = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(String(reader.result));
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setMissions(parsed);
+          handleSelectLesson(parsed[0]);
+          setStatusLog(`📤 Đã nhập thành công ${parsed.length} nhiệm vụ từ file JSON!`);
+        } else if (parsed && parsed.id && parsed.title) {
+          setMissions((prev) => [...prev, parsed]);
+          handleSelectLesson(parsed);
+          setStatusLog(`📤 Đã nhập nhiệm vụ "${parsed.title}"!`);
+        }
+      } catch {
+        setStatusLog('⚠️ File JSON không hợp lệ.');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  const handleResetDefaultMissions = () => {
+    localStorage.removeItem(MISSIONS_STORAGE_KEY);
+    setMissions(CURRICULUM_LESSONS);
+    handleSelectLesson(CURRICULUM_LESSONS[0]);
+    setStatusLog('↺ Đã khôi phục danh sách 8 bài học mặc định.');
   };
 
   const handleUpdateBlockParam = (id, key, val) => {
@@ -500,6 +735,82 @@ export default function App() {
     } catch {
       // Ignore if audio blocked
     }
+  };
+
+  // Tính khoảng cách cảm biến siêu âm (Port E) và cảm biến màu (Port D) theo thời gian thực trên sa bàn
+  const computeLiveArenaSensors = (px, py, angleDeg) => {
+    const rad = (angleDeg * Math.PI) / 180;
+    const sensorX = px + Math.cos(rad) * 18;
+    const sensorY = py + Math.sin(rad) * 18;
+
+    // 1. Cảm biến khoảng cách (Port E): đo tới vật cản mặc định + vật cản/tường tự đặt
+    let minCm = Math.max(5, Math.round((430 - px) * 0.35));
+    if (arenaConfig?.obstacles?.length) {
+      for (const obs of arenaConfig.obstacles) {
+        const dx = obs.x - px;
+        const dy = obs.y - py;
+        const distPx = Math.hypot(dx, dy) - (obs.r || 15);
+        const angleToObs = (Math.atan2(dy, dx) * 180) / Math.PI;
+        const angleDiff = Math.abs(((angleToObs - angleDeg + 540) % 360) - 180);
+        if (angleDiff < 45 && distPx > 0) {
+          const cm = Math.max(4, Math.round(distPx * 0.35));
+          if (cm < minCm) minCm = cm;
+        }
+      }
+    }
+    if (arenaConfig?.walls?.length) {
+      for (const w of arenaConfig.walls) {
+        const cx = w.x + w.w / 2;
+        const cy = w.y + w.h / 2;
+        const distPx = Math.hypot(cx - px, cy - py);
+        const cm = Math.max(4, Math.round(distPx * 0.35));
+        if (cm < minCm) minCm = cm;
+      }
+    }
+
+    // 2. Cảm biến màu (Port D): kiểm tra dải màu tự đặt hoặc đường line đen tự vẽ
+    let detectedColor = null;
+    if (arenaConfig?.colorPatches?.length) {
+      for (const cp of arenaConfig.colorPatches) {
+        if (
+          sensorX >= cp.x - 4 &&
+          sensorX <= cp.x + cp.w + 4 &&
+          sensorY >= cp.y - 4 &&
+          sensorY <= cp.y + cp.h + 4
+        ) {
+          const sw = COLOR_SWATCHES.find((s) => s.name === cp.color);
+          detectedColor = {
+            color: cp.color,
+            reflection: sw ? sw.reflection : 50
+          };
+          break;
+        }
+      }
+    }
+    if (!detectedColor && arenaConfig?.lines?.length) {
+      for (const poly of arenaConfig.lines) {
+        for (const pt of poly) {
+          if (Math.hypot(pt.x - sensorX, pt.y - sensorY) < 14) {
+            detectedColor = { color: 'BLACK', reflection: 14 };
+            break;
+          }
+        }
+        if (detectedColor) break;
+      }
+    }
+
+    return { distanceCm: minCm, detectedColor };
+  };
+
+  const checkCustomGoalReached = (px, py) => {
+    if (arenaConfig?.goals?.length) {
+      for (const g of arenaConfig.goals) {
+        if (px >= g.x - 12 && px <= g.x + g.w + 12 && py >= g.y - 12 && py <= g.y + g.h + 12) {
+          return true;
+        }
+      }
+    }
+    return false;
   };
 
   const runProgram = async () => {
@@ -647,13 +958,15 @@ export default function App() {
             const rad = (pose.angle * Math.PI) / 180;
             pose.x = Math.max(30, Math.min(480, pose.x + Math.cos(rad) * stepDist));
             pose.y = Math.max(30, Math.min(235, pose.y + Math.sin(rad) * stepDist));
-            pose.distanceCm = Math.max(5, Math.round((430 - pose.x) * 0.35));
+            const live = computeLiveArenaSensors(pose.x, pose.y, pose.angle);
+            pose.distanceCm = live.distanceCm;
             pose.trail = [...pose.trail, { x: pose.x, y: pose.y }];
             setRobotPose({ ...pose });
 
             setTelemetry((prev) => ({
               ...prev,
               distanceSensor: { cm: pose.distanceCm },
+              colorSensor: live.detectedColor || prev.colorSensor,
               motors: {
                 ...prev.motors,
                 A: { angle: prev.motors.A.angle + sign * 15, speed: moveSpeed },
@@ -780,27 +1093,62 @@ export default function App() {
 
         case 'repeat_loop_line_follow': {
           setStatusLog(`repeat (${p.times}): Đang dò line đen bằng Cảm biến màu D...`);
-          const totalSteps = Math.min(45, Math.max(15, Math.round((p.times || 80) / 2.2)));
-          for (let i = 0; i < totalSteps; i++) {
-            if (stopFlagRef.current) break;
-            pose.x = Math.min(395, pose.x + 5.8);
-            const t = (pose.x - 70) / 340;
-            pose.y = 132 + Math.sin(t * Math.PI * 2) * 28;
-            pose.angle = Math.cos(t * Math.PI * 2) * 18;
-            pose.distanceCm = Math.max(8, Math.round((425 - pose.x) * 0.35));
-            pose.trail = [...pose.trail, { x: pose.x, y: pose.y }];
-            setRobotPose({ ...pose });
+          // Nếu sa bàn có đường line đen tự vẽ (custom lines), Robot sẽ bám theo đường line tự vẽ đó!
+          const customPoly =
+            arenaConfig?.lines?.length > 0 && arenaConfig.lines[0].length > 1
+              ? arenaConfig.lines.flat()
+              : null;
 
-            setTelemetry((prev) => ({
-              ...prev,
-              gyroYaw: pose.angle,
-              colorSensor: {
-                color: i % 2 === 0 ? 'BLACK' : 'WHITE',
-                reflection: i % 2 === 0 ? 14 : 72
-              },
-              distanceSensor: { cm: pose.distanceCm }
-            }));
-            await sleep(32);
+          if (customPoly && customPoly.length > 1) {
+            for (let i = 0; i < customPoly.length; i++) {
+              if (stopFlagRef.current) break;
+              const targetPt = customPoly[i];
+              const dx = targetPt.x - pose.x;
+              const dy = targetPt.y - pose.y;
+              if (Math.hypot(dx, dy) > 2) {
+                pose.angle = Math.round((Math.atan2(dy, dx) * 180) / Math.PI);
+              }
+              pose.x = targetPt.x;
+              pose.y = targetPt.y;
+              const live = computeLiveArenaSensors(pose.x, pose.y, pose.angle);
+              pose.distanceCm = live.distanceCm;
+              pose.trail = [...pose.trail, { x: pose.x, y: pose.y }];
+              setRobotPose({ ...pose });
+              setTelemetry((prev) => ({
+                ...prev,
+                gyroYaw: pose.angle,
+                colorSensor: live.detectedColor || {
+                  color: i % 2 === 0 ? 'BLACK' : 'WHITE',
+                  reflection: i % 2 === 0 ? 14 : 68
+                },
+                distanceSensor: { cm: pose.distanceCm }
+              }));
+              await sleep(34);
+            }
+          } else {
+            const totalSteps = Math.min(45, Math.max(15, Math.round((p.times || 80) / 2.2)));
+            for (let i = 0; i < totalSteps; i++) {
+              if (stopFlagRef.current) break;
+              pose.x = Math.min(395, pose.x + 5.8);
+              const t = (pose.x - 70) / 340;
+              pose.y = 132 + Math.sin(t * Math.PI * 2) * 28;
+              pose.angle = Math.cos(t * Math.PI * 2) * 18;
+              const live = computeLiveArenaSensors(pose.x, pose.y, pose.angle);
+              pose.distanceCm = live.distanceCm;
+              pose.trail = [...pose.trail, { x: pose.x, y: pose.y }];
+              setRobotPose({ ...pose });
+
+              setTelemetry((prev) => ({
+                ...prev,
+                gyroYaw: pose.angle,
+                colorSensor: live.detectedColor || {
+                  color: i % 2 === 0 ? 'BLACK' : 'WHITE',
+                  reflection: i % 2 === 0 ? 14 : 72
+                },
+                distanceSensor: { cm: pose.distanceCm }
+              }));
+              await sleep(32);
+            }
           }
           break;
         }
@@ -808,15 +1156,19 @@ export default function App() {
         case 'wait_until_sensor': {
           setStatusLog(`wait until <${p.port} is ${p.condition} ${p.value} ${p.unit}?>`);
           while (!stopFlagRef.current && pose.distanceCm > p.value) {
-            pose.x = Math.min(405, pose.x + 4.5);
-            pose.distanceCm = Math.max(5, Math.round((425 - pose.x) * 0.35));
+            const rad = (pose.angle * Math.PI) / 180;
+            pose.x = Math.max(30, Math.min(470, pose.x + Math.cos(rad) * 4.5));
+            pose.y = Math.max(30, Math.min(235, pose.y + Math.sin(rad) * 4.5));
+            const live = computeLiveArenaSensors(pose.x, pose.y, pose.angle);
+            pose.distanceCm = live.distanceCm;
             pose.trail = [...pose.trail, { x: pose.x, y: pose.y }];
             setRobotPose({ ...pose });
             setTelemetry((prev) => ({
               ...prev,
-              distanceSensor: { cm: pose.distanceCm }
+              distanceSensor: { cm: pose.distanceCm },
+              colorSensor: live.detectedColor || prev.colorSensor
             }));
-            if (pose.x >= 402) break;
+            if (pose.x >= 460 || pose.distanceCm <= p.value) break;
             await sleep(30);
           }
           break;
@@ -862,10 +1214,13 @@ export default function App() {
     setIsRunning(false);
 
     if (!stopFlagRef.current) {
+      const reachedCustomGoal = checkCustomGoalReached(pose.x, pose.y);
       setMissionCompleted(true);
       setCompletedLessons((prev) => ({ ...prev, [currentLesson.id]: true }));
       setStatusLog(
-        `✅ Hoàn thành "${currentLesson.title}"! Nhấn nút vàng "Connect" để kết nối và chạy trên Robot thật.`
+        reachedCustomGoal
+          ? `🏆 Xuất sắc! Robot đã chạm vùng Đích GOAL trong "${currentLesson.title}"!`
+          : `✅ Hoàn thành "${currentLesson.title}"! Nhấn nút vàng "Connect" để kết nối Robot thật.`
       );
     }
   };
@@ -944,6 +1299,308 @@ export default function App() {
         </div>
       )}
 
+      {/* MODAL QUẢN LÝ & THIẾT KẾ NHIỆM VỤ / SA BÀN (MISSION STUDIO) */}
+      {showMissionStudioModal && (
+        <div className="fixed inset-0 bg-slate-900/65 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-5xl w-full max-h-[88vh] flex flex-col overflow-hidden">
+            {/* Header */}
+            <div className="px-5 py-3.5 bg-slate-900 text-white flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5">
+                <Settings2 className="w-5 h-5 text-amber-400" />
+                <div>
+                  <h3 className="text-sm font-extrabold uppercase tracking-wide">
+                    🎯 Mission & Arena Studio — Thiết Kế Nhiệm Vụ & Sa Bàn Linh Động
+                  </h3>
+                  <p className="text-[11px] text-slate-400">
+                    Tạo không giới hạn cấp độ/nhiệm vụ mới, lưu sa bàn tự vẽ, chỉnh sửa đề bài và xuất/nhập file .JSON chia sẻ cho học sinh
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  ref={missionFileInputRef}
+                  type="file"
+                  accept="application/json"
+                  onChange={handleImportMissionsJson}
+                  className="hidden"
+                />
+                <button
+                  onClick={() => missionFileInputRef.current?.click()}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 text-xs font-bold"
+                  title="Nhập bộ nhiệm vụ từ file JSON"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  Nhập JSON
+                </button>
+                <button
+                  onClick={handleExportMissionsJson}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-slate-700 text-xs font-bold"
+                  title="Xuất toàn bộ nhiệm vụ & sa bàn ra file JSON"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  Xuất JSON
+                </button>
+                <button
+                  onClick={handleResetDefaultMissions}
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-bold"
+                  title="Khôi phục 8 bài học mặc định"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  Mặc định
+                </button>
+                <button
+                  onClick={() => setShowMissionStudioModal(false)}
+                  className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold"
+                >
+                  Đóng ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Body: 2 cột (Danh sách nhiệm vụ bên trái + Form chỉnh sửa chi tiết bên phải) */}
+            <div className="flex-1 min-h-0 grid grid-cols-12 overflow-hidden">
+              {/* Cột trái: Danh sách tất cả nhiệm vụ */}
+              <div className="col-span-5 border-r border-slate-200 bg-slate-50 flex flex-col overflow-hidden">
+                <div className="p-3 border-b border-slate-200 flex items-center justify-between bg-white">
+                  <span className="text-xs font-extrabold text-slate-700 uppercase">
+                    Danh Sách Nhiệm Vụ ({missions.length} cấp độ)
+                  </span>
+                  <button
+                    onClick={handleCreateNewMission}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold shadow-sm"
+                  >
+                    <FilePlus2 className="w-3.5 h-3.5" />
+                    + Tạo Nhiệm Vụ Mới
+                  </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-2.5 space-y-2">
+                  {missions.map((m, idx) => {
+                    const isSelected = m.id === currentLessonId;
+                    const isDone = completedLessons[m.id];
+                    return (
+                      <div
+                        key={m.id}
+                        onClick={() => handleSelectLesson(m)}
+                        className={`cursor-pointer rounded-xl p-2.5 border-2 transition ${
+                          isSelected
+                            ? 'border-amber-500 bg-amber-50/70 shadow-sm'
+                            : 'border-slate-200 hover:border-slate-300 bg-white'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className="px-1.5 py-0.5 rounded bg-slate-900 text-amber-300 text-[10px] font-extrabold">
+                                #{idx + 1}
+                              </span>
+                              <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 text-[10px] font-bold">
+                                {m.mode}
+                              </span>
+                              {m.isCustom && (
+                                <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                                  Tự thiết kế
+                                </span>
+                              )}
+                              {isDone && (
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                              )}
+                            </div>
+                            <div className="text-xs font-extrabold text-slate-900 mt-1 truncate">
+                              {m.title}
+                            </div>
+                            <div className="text-[11px] text-slate-500 truncate">{m.objective}</div>
+                          </div>
+
+                          <div
+                            className="flex items-center gap-1 shrink-0"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <button
+                              onClick={() => handleDuplicateMission(m)}
+                              title="Nhân bản nhiệm vụ này"
+                              className="p-1 rounded hover:bg-slate-200 text-slate-600"
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                            </button>
+                            {missions.length > 1 && (
+                              <button
+                                onClick={() => handleDeleteMission(m.id)}
+                                title="Xóa nhiệm vụ này"
+                                className="p-1 rounded hover:bg-rose-100 text-rose-600"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Cột phải: Chỉnh sửa chi tiết Nhiệm vụ đang chọn */}
+              <div className="col-span-7 p-5 overflow-y-auto space-y-4 bg-white">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                  <div>
+                    <span className="text-[11px] font-extrabold uppercase text-amber-600">
+                      Đang chỉnh sửa nhiệm vụ
+                    </span>
+                    <h4 className="text-base font-extrabold text-slate-900">
+                      {currentLesson.title}
+                    </h4>
+                  </div>
+                  <button
+                    onClick={handleSaveCurrentStateToMission}
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold shadow"
+                  >
+                    <Save className="w-4 h-4" />
+                    Lưu Sa Bàn & {blocks.length} Khối Lệnh Hiện Tại Vào Bài Này
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="col-span-2">
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Tên Nhiệm Vụ / Cấp Độ (Title):
+                    </label>
+                    <input
+                      type="text"
+                      value={currentLesson.title}
+                      onChange={(e) => handleUpdateMissionField('title', e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Chủ Đề / Cấp Độ (Unit / Level):
+                    </label>
+                    <input
+                      type="text"
+                      value={currentLesson.level || ''}
+                      onChange={(e) => handleUpdateMissionField('level', e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Chế Độ Mô Phỏng & Loại Sa Bàn Nền:
+                    </label>
+                    <div className="flex gap-2">
+                      <select
+                        value={currentLesson.mode || '2D'}
+                        onChange={(e) => handleUpdateMissionField('mode', e.target.value)}
+                        className="px-2.5 py-2 rounded-lg border border-slate-300 text-xs font-bold bg-slate-50"
+                      >
+                        <option value="2D">Sa bàn 2D</option>
+                        <option value="3D">Không gian 3D</option>
+                      </select>
+
+                      <select
+                        value={mapType}
+                        onChange={(e) => handleUpdateMissionField('mapType', e.target.value)}
+                        className="flex-1 px-2.5 py-2 rounded-lg border border-slate-300 text-xs font-bold bg-slate-50"
+                      >
+                        <option value="custom_blank">Sa bàn Trống (Tự thiết kế 100%)</option>
+                        <option value="line_track">Sa bàn Dò Line & Vật cản</option>
+                        <option value="maze">Sa bàn Mê Cung Tường Chắn</option>
+                        <option value="sensor_lab">Sa bàn Trạm 4 Màu & Siêu Âm</option>
+                        <option value="slalom_obstacles">Sa bàn Zíc-zắc 3 Trụ (Slalom)</option>
+                        <option value="fll_challenge">Thảm Thi Đấu FLL (M01-M03)</option>
+                        <option value="loop_circuit">Đường Đua Khép Kín (Loop)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="col-span-2">
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Mục Tiêu Đề Bài (Objective hiển thị trên thanh tiêu đề):
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={currentLesson.objective || ''}
+                      onChange={(e) => handleUpdateMissionField('objective', e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    />
+                  </div>
+
+                  <div className="col-span-2">
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Hướng Dẫn Học Sinh Thực Hiện (Mỗi dòng 1 bước):
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={(currentLesson.steps || []).join('\n')}
+                      onChange={(e) =>
+                        handleUpdateMissionField('steps', e.target.value.split('\n'))
+                      }
+                      className="w-full px-3 py-2 rounded-lg border border-slate-300 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    />
+                  </div>
+                </div>
+
+                {/* Tóm tắt các vật thể đang có trên Sa bàn của nhiệm vụ này */}
+                <div className="bg-slate-900 text-white rounded-xl p-3.5 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-extrabold text-amber-400 uppercase">
+                      🗺 Cấu hình Sa bàn Tùy chỉnh của Nhiệm vụ này
+                    </span>
+                    <button
+                      onClick={() => {
+                        setShowMissionStudioModal(false);
+                        setSimMode('2D');
+                        setRightRedZoneTab('arena');
+                        setStatusLog(
+                          '🛠 Hãy nhấn nút "🛠 Thiết Kế Sa Bàn" màu vàng ở góc trên phải của Sa bàn 2D để vẽ đường line, đặt Đích GOAL, Tường & Vật cản!'
+                        );
+                      }}
+                      className="px-3 py-1 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-950 text-[11px] font-extrabold"
+                    >
+                      Mở Công Cụ Vẽ Trực Tiếp Trên Sa Bàn 2D →
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-5 gap-2 text-center text-[11px]">
+                    <div className="bg-slate-800 rounded-lg p-2">
+                      <div className="font-mono font-extrabold text-sm text-amber-300">
+                        {arenaConfig?.lines?.length || 0}
+                      </div>
+                      <div className="text-slate-400">Đường Line</div>
+                    </div>
+                    <div className="bg-slate-800 rounded-lg p-2">
+                      <div className="font-mono font-extrabold text-sm text-emerald-400">
+                        {arenaConfig?.goals?.length || 0}
+                      </div>
+                      <div className="text-slate-400">Đích GOAL</div>
+                    </div>
+                    <div className="bg-slate-800 rounded-lg p-2">
+                      <div className="font-mono font-extrabold text-sm text-rose-400">
+                        {arenaConfig?.obstacles?.length || 0}
+                      </div>
+                      <div className="text-slate-400">Trụ Vật Cản</div>
+                    </div>
+                    <div className="bg-slate-800 rounded-lg p-2">
+                      <div className="font-mono font-extrabold text-sm text-cyan-300">
+                        {arenaConfig?.walls?.length || 0}
+                      </div>
+                      <div className="text-slate-400">Tường Chắn</div>
+                    </div>
+                    <div className="bg-slate-800 rounded-lg p-2">
+                      <div className="font-mono font-extrabold text-sm text-purple-300">
+                        {arenaConfig?.colorPatches?.length || 0}
+                      </div>
+                      <div className="text-slate-400">Dải Màu</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MODAL BẬT/TẮT PHẦN MỞ RỘNG (BLOCK EXTENSIONS - GIỐNG HỆT TRANG SPIKE.LEGOEDUCATION.COM/PRIME/PROJECT) */}
       {showExtensionsModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -1013,67 +1670,94 @@ export default function App() {
       )}
 
       {/* 1. TOP PROJECT TAB BAR */}
-      <header className="h-12 bg-[#eef0f3] border-b border-slate-300 px-3 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-2">
+      <header className="h-12 bg-[#eef0f3] border-b border-slate-300 px-3 flex items-center justify-between shrink-0 overflow-hidden whitespace-nowrap">
+        <div className="flex items-center gap-2 min-w-0">
           <button
-            onClick={() => handleSelectLesson(CURRICULUM_LESSONS[0])}
+            onClick={() => handleSelectLesson(missions[0])}
             title="Home"
-            className="w-8 h-8 rounded-lg bg-white hover:bg-slate-100 border border-slate-300 flex items-center justify-center text-slate-600 shadow-sm"
+            className="w-8 h-8 rounded-lg bg-white hover:bg-slate-100 border border-slate-300 flex items-center justify-center text-slate-600 shadow-sm shrink-0"
           >
             <Home className="w-4 h-4" />
           </button>
 
-          <div className="flex items-center gap-2 bg-white px-3.5 py-1.5 rounded-full border border-slate-300 shadow-sm">
+          <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full border border-slate-300 shadow-sm shrink-0">
             <span className="w-2.5 h-2.5 rounded-full bg-yellow-400" />
             <BookOpen className="w-3.5 h-3.5 text-slate-500" />
             <select
               value={currentLessonId}
               onChange={(e) => {
-                const found = CURRICULUM_LESSONS.find((l) => l.id === e.target.value);
+                const found = missions.find((l) => l.id === e.target.value);
                 if (found) handleSelectLesson(found);
               }}
-              className="bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer pr-1"
+              className="bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer pr-1 max-w-[300px]"
             >
-              {CURRICULUM_LESSONS.map((lesson, idx) => (
+              {missions.map((lesson, idx) => (
                 <option key={lesson.id} value={lesson.id}>
-                  Project {idx + 1}: {lesson.title} ({lesson.mode})
+                  Nhiệm vụ {idx + 1}: {lesson.title} ({lesson.mode})
                 </option>
               ))}
             </select>
           </div>
 
-          <span className="hidden xl:inline-block text-xs text-slate-600 bg-amber-50 border border-amber-200 px-3 py-1 rounded-full font-medium truncate max-w-md">
-            🎯 <strong>Nhiệm vụ:</strong> {currentLesson.objective}
+          <button
+            onClick={() => setShowMissionStudioModal(true)}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold shadow-sm transition shrink-0"
+            title="Mở trình Quản lý & Thiết kế Nhiệm vụ / Sa bàn mới"
+          >
+            <Settings2 className="w-3.5 h-3.5" />
+            🎯 Thiết Kế Nhiệm Vụ ({missions.length})
+          </button>
+
+          <button
+            onClick={handleCreateNewMission}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold shadow-sm transition shrink-0"
+            title="Tạo nhanh 1 nhiệm vụ và sa bàn trống mới"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Tạo Bài Mới
+          </button>
+
+          <span className="hidden 2xl:inline-block text-xs text-slate-600 bg-amber-50 border border-amber-200 px-3 py-1 rounded-full font-medium truncate max-w-sm">
+            🎯 <strong>Mục tiêu:</strong> {currentLesson.objective}
           </span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            onClick={handleSaveCurrentStateToMission}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-white hover:bg-amber-50 text-slate-800 border border-amber-400 text-xs font-bold shadow-sm transition"
+            title="Lưu Sa bàn tự vẽ và chồng lệnh hiện tại vào nhiệm vụ đang mở"
+          >
+            <Save className="w-3.5 h-3.5 text-amber-600" />
+            Lưu Sa Bàn & Code
+          </button>
+
           <button
             onClick={() => setShowExtensionsModal(true)}
             className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-sm transition"
           >
             <Plus className="w-3.5 h-3.5" />
-            Block Extensions ({enabledExtensions.length})
+            Extensions ({enabledExtensions.length})
           </button>
 
           <button
             onClick={() => setShowShapeGuideModal((v) => !v)}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs font-bold shadow-sm transition"
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs font-bold shadow-sm transition"
           >
             <HelpCircle className="w-3.5 h-3.5 text-amber-500" />
-            6 Loại Khối Lệnh
+            6 Loại Khối
           </button>
 
           <button
             onClick={() => setRightRedZoneTab('builder')}
-            className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold border shadow-sm transition ${
+            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-bold border shadow-sm transition ${
               rightRedZoneTab === 'builder'
                 ? 'bg-pink-600 text-white border-pink-600'
                 : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-300'
             }`}
           >
             <Cog className="w-3.5 h-3.5" />
-            5 Cơ Cấu SPIKE Prime
+            5 Cơ Cấu
           </button>
         </div>
       </header>
@@ -1541,13 +2225,16 @@ export default function App() {
                       mapType={mapType}
                       setMapType={(newMap) => {
                         setMapType(newMap);
-                        resetSimulatorPose(newMap);
+                        resetSimulatorPose(newMap, arenaConfig);
                       }}
                       robotPose={robotPose}
-                      onResetSimulator={() => resetSimulatorPose(mapType)}
+                      onResetSimulator={() => resetSimulatorPose(mapType, arenaConfig)}
                       telemetry={telemetry}
                       missionCompleted={missionCompleted}
                       onManualNudgeArm={handleManualNudgeArm}
+                      arenaConfig={arenaConfig}
+                      onUpdateArenaConfig={handleUpdateArenaConfig}
+                      onSetStartPose={handleSetStartPose}
                     />
                   </div>
 

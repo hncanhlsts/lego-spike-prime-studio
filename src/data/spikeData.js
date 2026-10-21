@@ -1989,6 +1989,95 @@ export const CURRICULUM_LESSONS = [
       { id: 'b7', type: 'move_for_duration', params: { direction: 'backward', value: 60, unit: 'cm' } },
       { id: 'b8', type: 'display_write', params: { text: '3D Cargo Lifted!', seconds: 2 } }
     ]
+  },
+  {
+    id: 'lesson_6',
+    level: 'Unit 6: Advanced Navigation - Slalom',
+    title: 'Bài 6: Luồn Lách Zíc-Zắc Qua 3 Trụ Cản (Slalom Obstacles)',
+    mode: '2D',
+    mapType: 'slalom_obstacles',
+    winCondition: 'reach_goal',
+    objective: 'Lập trình xe Robot đánh lái luồn qua 3 trụ vật cản P1, P2, P3 để về đích SLALOM GOAL.',
+    steps: [
+      'Quan sát vị trí 3 trụ cản P1, P2, P3 trên sa bàn Zíc-zắc.',
+      'Phối hợp khối "move [↑] for (cm)" và "move [right/left] for (rotations)" để chuyển làn không chạm trụ.',
+      'Bạn có thể bấm nút "🛠 Thiết Kế Sa Bàn" để thêm/xóa trụ cản tùy ý!'
+    ],
+    defaultBlocks: [
+      { id: 'b0', type: 'when_program_starts', params: {} },
+      { id: 'b1', type: 'set_movement_motors', params: { ports: 'A+B' } },
+      { id: 'b2', type: 'set_movement_speed', params: { speed: 60 } },
+      { id: 'b3', type: 'move_with_steering', params: { steeringText: 'left: -45', steering: -45, value: 1, unit: 'rotations' } },
+      { id: 'b4', type: 'move_for_duration', params: { direction: 'forward', value: 90, unit: 'cm' } },
+      { id: 'b5', type: 'move_with_steering', params: { steeringText: 'right: 90', steering: 90, value: 1, unit: 'rotations' } },
+      { id: 'b6', type: 'move_for_duration', params: { direction: 'forward', value: 130, unit: 'cm' } },
+      { id: 'b7', type: 'move_with_steering', params: { steeringText: 'left: -90', steering: -90, value: 1, unit: 'rotations' } },
+      { id: 'b8', type: 'move_for_duration', params: { direction: 'forward', value: 130, unit: 'cm' } },
+      { id: 'b9', type: ' move_with_steering'.trim(), params: { steeringText: 'right: 45', steering: 45, value: 1, unit: 'rotations' } },
+      { id: 'b10', type: 'move_for_duration', params: { direction: 'forward', value: 120, unit: 'cm' } }
+    ]
+  },
+  {
+    id: 'lesson_7',
+    level: 'Unit 7: FIRST® LEGO® League (FLL) Challenge',
+    title: 'Bài 7: Thảm Thi Đấu FLL (Giải Quyết 3 Trạm M01, M02, M03)',
+    mode: '2D',
+    mapType: 'fll_challenge',
+    winCondition: 'reach_goal',
+    objective: 'Xuất phát từ BASE (góc dưới trái), di chuyển qua các trạm M01, M02 và tiến vào trạm M03 (Drop Zone).',
+    steps: [
+      'Sa bàn mô phỏng thảm thi đấu FIRST® LEGO® League với vùng BASE và 3 trạm nhiệm vụ M01, M02, M03.',
+      'Điều khiển Robot rời khỏi BASE, đi qua hành lang trung tâm để tiếp cận M03.',
+      'Có thể tải ảnh thảm thi đấu FLL thực tế của trường bạn bằng nút "Tải ảnh Thảm FLL" trong công cụ Thiết Kế Sa Bàn!'
+    ],
+    defaultBlocks: [
+      { id: 'b0', type: 'when_program_starts', params: {} },
+      { id: 'b1', type: 'set_movement_motors', params: { ports: 'A+B' } },
+      { id: 'b2', type: 'move_for_duration', params: { direction: 'forward', value: 160, unit: 'cm' } },
+      { id: 'b3', type: 'move_with_steering', params: { steeringText: 'left: -45', steering: -45, value: 1, unit: 'rotations' } },
+      { id: 'b4', type: 'move_for_duration', params: { direction: 'forward', value: 140, unit: 'cm' } },
+      { id: 'b5', type: 'move_with_steering', params: { steeringText: 'right: 45', steering: 45, value: 1, unit: 'rotations' } },
+      { id: 'b6', type: 'move_for_duration', params: { direction: 'forward', value: 100, unit: 'cm' } },
+      { id: 'b7', type: 'light_matrix_turn_on', params: { pattern: 'HEART' } }
+    ]
+  },
+  {
+    id: 'lesson_8',
+    level: 'Unit 8: Creative Sandbox (Tự Thiết Kế Sa Bàn & Đề Bài)',
+    title: 'Bài 8: Sa Bàn Tự Do - Tự Vẽ Đường Line, Đặt Đích & Vật Cản',
+    mode: '2D',
+    mapType: 'custom_blank',
+    winCondition: 'reach_goal',
+    objective: 'Bấm nút "🛠 Thiết Kế Sa Bàn" trên sa bàn để tự vẽ đường line đen, đặt Đích GOAL, Tường chắn, Vật cản, Dải màu hoặc tải ảnh thảm thi đấu.',
+    steps: [
+      'Nhấn nút "🛠 Thiết Kế Sa Bàn" ở góc trên phải của Sa bàn 2D.',
+      'Chọn công cụ: "Vẽ Line Đen", "Đặt Đích GOAL", "Vật Cản (Ultrasonic)", "Tường Ngang/Dọc", hoặc "Dải Màu Cảm Biến" rồi click/kéo trực tiếp trên sa bàn.',
+      'Nhấn nút "🎯 Quản Lý Nhiệm Vụ" trên thanh tiêu đề để Lưu sa bàn và tạo thêm không giới hạn nhiệm vụ mới cho học sinh!'
+    ],
+    arenaConfig: {
+      startPose: { x: 65, y: 132, angle: 0 },
+      lines: [
+        [
+          { x: 65, y: 132 },
+          { x: 150, y: 132 },
+          { x: 220, y: 85 },
+          { x: 310, y: 85 },
+          { x: 375, y: 155 },
+          { x: 440, y: 155 }
+        ]
+      ],
+      goals: [{ id: 'g_default', x: 415, y: 130, w: 62, h: 50, label: 'CUSTOM GOAL' }],
+      obstacles: [{ id: 'obs_default', x: 265, y: 175, r: 16, label: 'OBS 1' }],
+      walls: [{ id: 'w_default', x: 175, y: 130, w: 14, h: 80 }],
+      colorPatches: [{ id: 'cp_default', x: 140, y: 118, w: 24, h: 28, color: 'GREEN', hex: '#16a34a' }],
+      backgroundImage: ''
+    },
+    defaultBlocks: [
+      { id: 'b0', type: 'when_program_starts', params: {} },
+      { id: 'b1', type: 'set_movement_motors', params: { ports: 'A+B' } },
+      { id: 'b2', type: 'repeat_loop_line_follow', params: { times: 85, action: 'line_follow_port_D' } },
+      { id: 'b3', type: 'play_beep_for_seconds', params: { note: 72, seconds: 0.3 } }
+    ]
   }
 ];
 
