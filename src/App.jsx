@@ -27,7 +27,11 @@ import {
   Settings2
 } from 'lucide-react';
 import SpikeBlockItem, { SpikeWheelBadge } from './components/SpikeBlockItem';
-import VirtualSimulatorPanel from './components/VirtualSimulatorPanel';
+import VirtualSimulatorPanel, {
+  MAP_2D_OPTIONS,
+  SCENE_3D_OPTIONS,
+  normalizeLineObject
+} from './components/VirtualSimulatorPanel';
 import {
   SPIKE_CORE_CATEGORIES,
   SPIKE_EXTENSIONS,
@@ -139,6 +143,9 @@ export default function App() {
     currentLesson.mapType && currentLesson.mapType !== '3d_mission'
       ? currentLesson.mapType
       : 'sensor_lab'
+  );
+  const [scene3DType, setScene3DType] = useState(
+    currentLesson.scene3DType || '3d_grab_lift'
   );
   const [buildStepIndex, setBuildStepIndex] = useState(0);
   const [canvasZoom, setCanvasZoom] = useState(100);
@@ -725,7 +732,11 @@ export default function App() {
     }
     if (targetMap === 'maze') return { x: 75, y: 88, angle: 0 };
     if (targetMap === 'fll_challenge') return { x: 65, y: 205, angle: 0 };
-    if (targetMap === 'loop_circuit') return { x: 110, y: 78, angle: 0 };
+    if (targetMap === 'loop_circuit') return { x: 140, y: 42, angle: 0 };
+    if (targetMap === 'rescue_line') return { x: 65, y: 200, angle: 0 };
+    if (targetMap === 'parking_garage') return { x: 65, y: 195, angle: 0 };
+    if (targetMap === 'sumo_ring') return { x: 205, y: 132, angle: 0 };
+    if (targetMap === 'warehouse_grid') return { x: 90, y: 130, angle: 0 };
     return { x: 75, y: 132, angle: 0 };
   };
 
@@ -765,6 +776,11 @@ export default function App() {
     const nextMap =
       lesson.mapType && lesson.mapType !== '3d_mission' ? lesson.mapType : 'sensor_lab';
     setMapType(nextMap);
+    if (lesson.scene3DType) {
+      setScene3DType(lesson.scene3DType);
+    } else if (lesson.mode === '3D') {
+      setScene3DType('3d_grab_lift');
+    }
     const nextArena = lesson.arenaConfig || EMPTY_ARENA_CONFIG;
     setArenaConfig(nextArena);
     setMissionCompleted(false);
@@ -807,6 +823,7 @@ export default function App() {
               ...m,
               mode: simMode,
               mapType: simMode === '3D' ? '3d_mission' : mapType,
+              scene3DType: simMode === '3D' ? scene3DType : m.scene3DType,
               arenaConfig,
               defaultBlocks: blocks
             }
@@ -815,7 +832,7 @@ export default function App() {
     );
     playSnapClick(660);
     setStatusLog(
-      `💾 Đã lưu Sa bàn (${mapType}) và ${blocks.length} khối lệnh vào nhiệm vụ "${currentLesson.title}"!`
+      `💾 Đã lưu Sa bàn (${simMode === '3D' ? scene3DType : mapType}) và ${blocks.length} khối lệnh vào nhiệm vụ "${currentLesson.title}"!`
     );
   };
 
@@ -830,6 +847,7 @@ export default function App() {
       title: `Bài ${nextIdx}: Thử thách Robot Tự Thiết Kế #${nextIdx}`,
       mode: simMode,
       mapType: simMode === '3D' ? '3d_mission' : 'custom_blank',
+      scene3DType: simMode === '3D' ? scene3DType : '3d_grab_lift',
       winCondition: 'reach_goal',
       objective:
         'Điều khiển Robot từ điểm START vượt qua chướng ngại vật để tiến vào vùng Đích GOAL.',
@@ -842,9 +860,10 @@ export default function App() {
         startPose: { x: 75, y: 132, angle: 0 },
         lines: [],
         goals: [{ id: `g_${Date.now()}`, x: 405, y: 105, w: 62, h: 52, label: 'GOAL' }],
-        obstacles: [{ id: `obs_${Date.now()}`, x: 255, y: 132, r: 16, label: 'OBS 1' }],
+        obstacles: [{ id: `obs_${Date.now()}`, x: 255, y: 112, w: 36, h: 44, label: 'OBS 1' }],
         walls: [],
         colorPatches: [],
+        cargos: [],
         backgroundImage: ''
       },
       defaultBlocks: [
@@ -892,6 +911,10 @@ export default function App() {
     if (field === 'mapType') {
       setMapType(value);
       resetSimulatorPose(value, arenaConfig);
+    }
+    if (field === 'scene3DType') {
+      setScene3DType(value);
+      resetSimulatorPose(mapType, arenaConfig);
     }
   };
 
@@ -998,20 +1021,44 @@ export default function App() {
 
   const handleManualNudgeArm = (action) => {
     setRobotPose((prev) => {
+      if (action === 'forward' || action === 'backward') {
+        const sign = action === 'forward' ? 1 : -1;
+        const rad = (prev.angle * Math.PI) / 180;
+        const nx = Math.max(30, Math.min(480, prev.x + Math.cos(rad) * 18 * sign));
+        const ny = Math.max(30, Math.min(235, prev.y + Math.sin(rad) * 18 * sign));
+        setStatusLog(
+          action === 'forward'
+            ? 'move ↑ forward 15 cm (Di chuyển tiến trong 3D)'
+            : 'move ↓ backward 15 cm (Di chuyển lùi trong 3D)'
+        );
+        return {
+          ...prev,
+          x: nx,
+          y: ny,
+          trail: [...(prev.trail || []), { x: nx, y: ny }]
+        };
+      }
+      if (action === 'turnLeft' || action === 'turnRight') {
+        const delta = action === 'turnLeft' ? -15 : 15;
+        const nextAng = prev.angle + delta;
+        setTelemetry((t) => ({ ...t, gyroYaw: nextAng }));
+        setStatusLog(`move steering (${delta}°) -> Yaw = ${Math.round(nextAng)}°`);
+        return { ...prev, angle: nextAng };
+      }
       if (action === 'lift') {
-        setStatusLog('C go shortest path to position 75° (Nâng tay máy)');
+        setStatusLog('C go shortest path to position 75° (Nâng tay máy / Càng nâng 3D)');
         return { ...prev, armAngle: 75 };
       }
       if (action === 'lower') {
-        setStatusLog('C go shortest path to position 10° (Hạ tay máy)');
+        setStatusLog('C go shortest path to position 10° (Hạ tay máy / Càng nâng 3D)');
         return { ...prev, armAngle: 10 };
       }
       const nextClosed = !prev.gripperClosed;
-      const nearCargo = prev.x >= 135;
+      const nearCargo = prev.x >= 115;
       setStatusLog(
         nextClosed
-          ? 'C go to relative position +90° (Đóng tay kẹp)'
-          : 'C go to relative position -90° (Mở tay kẹp)'
+          ? 'C go to relative position +90° (Đóng tay kẹp kiện hàng 3D)'
+          : 'C go to relative position -90° (Mở tay kẹp thả kiện hàng 3D)'
       );
       return {
         ...prev,
@@ -1042,6 +1089,16 @@ export default function App() {
     }
   };
 
+  const distPointToSeg = (px, py, x1, y1, x2, y2) => {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const lenSq = dx * dx + dy * dy;
+    if (lenSq === 0) return Math.hypot(px - x1, py - y1);
+    let t = ((px - x1) * dx + (py - y1) * dy) / lenSq;
+    t = Math.max(0, Math.min(1, t));
+    return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
+  };
+
   // Tính khoảng cách cảm biến siêu âm (Port E) và cảm biến màu (Port D) theo thời gian thực trên sa bàn
   const computeLiveArenaSensors = (px, py, angleDeg) => {
     const rad = (angleDeg * Math.PI) / 180;
@@ -1052,9 +1109,11 @@ export default function App() {
     let minCm = Math.max(5, Math.round((430 - px) * 0.35));
     if (arenaConfig?.obstacles?.length) {
       for (const obs of arenaConfig.obstacles) {
-        const dx = obs.x - px;
-        const dy = obs.y - py;
-        const distPx = Math.hypot(dx, dy) - (obs.r || 15);
+        const cx = obs.w ? obs.x + obs.w / 2 : obs.x;
+        const cy = obs.h ? obs.y + obs.h / 2 : obs.y;
+        const dx = cx - px;
+        const dy = cy - py;
+        const distPx = Math.hypot(dx, dy) - (obs.r || 18);
         const angleToObs = (Math.atan2(dy, dx) * 180) / Math.PI;
         const angleDiff = Math.abs(((angleToObs - angleDeg + 540) % 360) - 180);
         if (angleDiff < 45 && distPx > 0) {
@@ -1073,7 +1132,7 @@ export default function App() {
       }
     }
 
-    // 2. Cảm biến màu (Port D): kiểm tra dải màu tự đặt hoặc đường line đen tự vẽ
+    // 2. Cảm biến màu (Port D): kiểm tra dải màu tự đặt hoặc đường line tự vẽ (cả tự do & đoạn thẳng)
     let detectedColor = null;
     if (arenaConfig?.colorPatches?.length) {
       for (const cp of arenaConfig.colorPatches) {
@@ -1093,10 +1152,21 @@ export default function App() {
       }
     }
     if (!detectedColor && arenaConfig?.lines?.length) {
-      for (const poly of arenaConfig.lines) {
-        for (const pt of poly) {
-          if (Math.hypot(pt.x - sensorX, pt.y - sensorY) < 14) {
-            detectedColor = { color: 'BLACK', reflection: 14 };
+      for (let idx = 0; idx < arenaConfig.lines.length; idx++) {
+        const lineObj = normalizeLineObject(arenaConfig.lines[idx], idx);
+        const pts = lineObj.points || [];
+        const hitRadius = Math.max(10, (lineObj.width || 14) * 0.65);
+        for (let i = 0; i < pts.length - 1; i++) {
+          if (
+            distPointToSeg(sensorX, sensorY, pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y) <=
+            hitRadius
+          ) {
+            const cName = lineObj.colorName || 'BLACK';
+            const sw = COLOR_SWATCHES.find((s) => s.name === cName);
+            detectedColor = {
+              color: cName,
+              reflection: sw ? sw.reflection : 14
+            };
             break;
           }
         }
@@ -1500,10 +1570,28 @@ export default function App() {
               }
             } else {
               setStatusLog(`repeat (${p.times}): Đang dò line đen bằng Cảm biến màu D...`);
-              const customPoly =
-                arenaConfig?.lines?.length > 0 && arenaConfig.lines[0].length > 1
-                  ? arenaConfig.lines.flat()
-                  : null;
+              const rawPts = (arenaConfig?.lines || []).flatMap(
+                (l, idx) => normalizeLineObject(l, idx).points || []
+              );
+              const customPoly = [];
+              for (let i = 0; i < rawPts.length; i++) {
+                const cur = rawPts[i];
+                customPoly.push(cur);
+                if (i < rawPts.length - 1) {
+                  const nxt = rawPts[i + 1];
+                  const segDist = Math.hypot(nxt.x - cur.x, nxt.y - cur.y);
+                  if (segDist > 12) {
+                    const subSteps = Math.min(30, Math.floor(segDist / 8));
+                    for (let s = 1; s < subSteps; s++) {
+                      const t = s / subSteps;
+                      customPoly.push({
+                        x: cur.x + (nxt.x - cur.x) * t,
+                        y: cur.y + (nxt.y - cur.y) * t
+                      });
+                    }
+                  }
+                }
+              }
 
               if (customPoly && customPoly.length > 1) {
                 for (let i = 0; i < customPoly.length; i++) {
@@ -1988,23 +2076,35 @@ export default function App() {
                         onChange={(e) => handleUpdateMissionField('mode', e.target.value)}
                         className="px-2.5 py-2 rounded-lg border border-slate-300 text-xs font-bold bg-slate-50"
                       >
-                        <option value="2D">Sa bàn 2D</option>
-                        <option value="3D">Không gian 3D</option>
+                        <option value="2D">Sa bàn 2D (12 bản đồ)</option>
+                        <option value="3D">Không gian 3D (6 sa bàn)</option>
                       </select>
 
-                      <select
-                        value={mapType}
-                        onChange={(e) => handleUpdateMissionField('mapType', e.target.value)}
-                        className="flex-1 px-2.5 py-2 rounded-lg border border-slate-300 text-xs font-bold bg-slate-50"
-                      >
-                        <option value="custom_blank">Sa bàn Trống (Tự thiết kế 100%)</option>
-                        <option value="line_track">Sa bàn Dò Line & Vật cản</option>
-                        <option value="maze">Sa bàn Mê Cung Tường Chắn</option>
-                        <option value="sensor_lab">Sa bàn Trạm 4 Màu & Siêu Âm</option>
-                        <option value="slalom_obstacles">Sa bàn Zíc-zắc 3 Trụ (Slalom)</option>
-                        <option value="fll_challenge">Thảm Thi Đấu FLL (M01-M03)</option>
-                        <option value="loop_circuit">Đường Đua Khép Kín (Loop)</option>
-                      </select>
+                      {(currentLesson.mode || '2D') === '2D' ? (
+                        <select
+                          value={mapType}
+                          onChange={(e) => handleUpdateMissionField('mapType', e.target.value)}
+                          className="flex-1 px-2.5 py-2 rounded-lg border border-slate-300 text-xs font-bold bg-slate-50"
+                        >
+                          {MAP_2D_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <select
+                          value={scene3DType}
+                          onChange={(e) => handleUpdateMissionField('scene3DType', e.target.value)}
+                          className="flex-1 px-2.5 py-2 rounded-lg border border-orange-300 text-xs font-bold bg-orange-50 text-orange-950"
+                        >
+                          {SCENE_3D_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                      )}
                     </div>
                   </div>
 
@@ -2724,6 +2824,11 @@ export default function App() {
                       setMapType={(newMap) => {
                         setMapType(newMap);
                         resetSimulatorPose(newMap, arenaConfig);
+                      }}
+                      scene3DType={scene3DType}
+                      setScene3DType={(newScene) => {
+                        setScene3DType(newScene);
+                        resetSimulatorPose(mapType, arenaConfig);
                       }}
                       robotPose={robotPose}
                       onResetSimulator={() => resetSimulatorPose(mapType, arenaConfig)}

@@ -2000,14 +2000,15 @@ export const CURRICULUM_LESSONS = [
   {
     id: 'lesson_5',
     level: 'Unit 5: Driving Base 3 + Super Cleanup Grabber (3D)',
-    title: 'Bài 5: Cơ Cấu Tay Nâng Hạ & Gắp Kiện Hàng (Không gian 3D)',
+    title: 'Bài 5: Cơ Cấu Tay Nâng Hạ & Gắp Kiện Hàng Lên Bệ Cao (3D)',
     mode: '3D',
     mapType: '3d_mission',
-    objective: 'Sử dụng khối "C go [shortest path] to position" (1.2) và Extension "More Motors: go to relative position" (11.1) để gắp kiện hàng 3D.',
+    scene3DType: '3d_grab_lift',
+    objective: 'Sử dụng khối "C go [shortest path] to position" (1.2) và Extension "More Motors: go to relative position" (11.1) để gắp kiện hàng 3D đặt lên bệ cao.',
     steps: [
-      'Sa bàn trong khung màu đỏ đã chuyển sang Không gian 3D (giữ chuột trái kéo để xoay góc nhìn 3D).',
+      'Sa bàn trong khung màu đỏ đã chuyển sang Không gian 3D (có thể chọn 6 sa bàn 3D khác nhau hoặc kéo thả trực tiếp kiện hàng 3D bằng chuột).',
       'Khối "C go to position (10)" hạ cần cẩu -> "move ↑ for (95) cm" tiến tới khối hàng -> "C go to relative position (90)" đóng tay kẹp -> "C go to position (75)" nâng bổng kiện hàng lên!',
-      'Bấm vào tab "Cơ Cấu (5)" trong khung màu đỏ để tìm hiểu nguyên lý truyền động bánh răng của tay gắp.'
+      'Bấm vào tab "Cơ Cấu & Lắp Ráp" trong khung màu đỏ để tìm hiểu nguyên lý truyền động bánh răng của tay gắp.'
     ],
     defaultBlocks: [
       { id: 'b0', type: 'when_program_starts', params: {} },
@@ -2017,8 +2018,9 @@ export const CURRICULUM_LESSONS = [
       { id: 'b4', type: 'move_for_duration', params: { direction: 'forward', value: 95, unit: 'cm' } },
       { id: 'b5', type: 'more_motor_go_relative', params: { port: 'C', position: 90, speed: 80 } },
       { id: 'b6', type: 'motor_go_to_position', params: { port: 'C', direction: 'shortest path', position: 75 } },
-      { id: 'b7', type: 'move_for_duration', params: { direction: 'backward', value: 60, unit: 'cm' } },
-      { id: 'b8', type: 'display_write', params: { text: '3D Cargo Lifted!', seconds: 2 } }
+      { id: 'b7', type: 'move_for_duration', params: { direction: 'forward', value: 55, unit: 'cm' } },
+      { id: 'b8', type: 'more_motor_go_relative', params: { port: 'C', position: -90, speed: 80 } },
+      { id: 'b9', type: 'display_write', params: { text: '3D Cargo Lifted!', seconds: 2 } }
     ]
   },
   {
@@ -2108,6 +2110,75 @@ export const CURRICULUM_LESSONS = [
       { id: 'b1', type: 'set_movement_motors', params: { ports: 'A+B' } },
       { id: 'b2', type: 'repeat_loop_line_follow', params: { times: 85, action: 'line_follow_port_D' } },
       { id: 'b3', type: 'play_beep_for_seconds', params: { note: 72, seconds: 0.3 } }
+    ]
+  },
+  {
+    id: 'lesson_9',
+    level: 'Unit 9: 3D Warehouse Forklift & Rack Stacking',
+    title: 'Bài 9: Xe Nâng Forklift 3D — Xếp Pallet Lên Kệ Kho Tầng 2',
+    mode: '3D',
+    mapType: '3d_mission',
+    scene3DType: '3d_forklift_pallet',
+    objective: 'Điều khiển Càng nâng Forklift (Port C) hạ thấp luồn dưới kiện hàng Pallet, nâng cao lên 75° và tiến vào đặt lên Giá Kệ Kho Tầng 2.',
+    steps: [
+      'Hạ càng nâng Forklift xuống góc 10° bằng khối "C go [shortest path] to position (10)".',
+      'Cho xe tiến tới kiện hàng Pallet màu cam, sau đó nâng càng lên góc 75° để nhấc bổng kiện hàng.',
+      'Tiến thêm tới sát kệ kho 2 tầng rồi hạ càng để đặt kiện hàng lên tầng trên!'
+    ],
+    defaultBlocks: [
+      { id: 'b0', type: 'when_program_starts', params: {} },
+      { id: 'b1', type: 'set_movement_motors', params: { ports: 'A+B' } },
+      { id: 'b2', type: 'motor_go_to_position', params: { port: 'C', direction: 'shortest path', position: 10 } },
+      { id: 'b3', type: 'move_for_duration', params: { direction: 'forward', value: 85, unit: 'cm' } },
+      { id: 'b4', type: 'motor_go_to_position', params: { port: 'C', direction: 'shortest path', position: 78 } },
+      { id: 'b5', type: 'move_for_duration', params: { direction: 'forward', value: 65, unit: 'cm' } },
+      { id: 'b6', type: 'motor_go_to_position', params: { port: 'C', direction: 'shortest path', position: 42 } },
+      { id: 'b7', type: 'display_write', params: { text: 'Pallet Stacked!', seconds: 2 } }
+    ]
+  },
+  {
+    id: 'lesson_10',
+    level: 'Unit 10: 3D Drag & Drop Color Cargo Sorting',
+    title: 'Bài 10: Kéo - Thả & Phân Loại 3 Kiện Hàng Màu Trong Không Gian 3D',
+    mode: '3D',
+    mapType: '3d_mission',
+    scene3DType: '3d_drag_drop_sorting',
+    objective: 'Gắp, nâng và thả các kiện hàng 3D (Đỏ, Xanh lá, Xanh dương) vào đúng ô đích tương ứng (hoặc dùng chuột kéo thả trực tiếp kiện hàng 3D).',
+    steps: [
+      'Trong chế độ 3D, bạn có thể nhấn nút "✋ Kéo Thả Kiện Hàng 3D" để dùng chuột kéo các khối hàng đặt vào bất kỳ vị trí nào trên sàn.',
+      'Lập trình Robot tiến tới kiện hàng ở giữa, đóng tay gắp (+90°), nâng lên và chở thẳng vào ô đích Xanh lá.',
+      'Thử đổi sang các sa bàn 3D khác như Cần Cẩu Tháp, Xe Ủi Bulldozer hoặc Cầu Rút FLL ở menu chọn sa bàn 3D!'
+    ],
+    defaultBlocks: [
+      { id: 'b0', type: 'when_program_starts', params: {} },
+      { id: 'b1', type: 'set_movement_motors', params: { ports: 'A+B' } },
+      { id: 'b2', type: 'motor_go_to_position', params: { port: 'C', direction: 'shortest path', position: 12 } },
+      { id: 'b3', type: 'move_for_duration', params: { direction: 'forward', value: 90, unit: 'cm' } },
+      { id: 'b4', type: 'more_motor_go_relative', params: { port: 'C', position: 90, speed: 80 } },
+      { id: 'b5', type: 'motor_go_to_position', params: { port: 'C', direction: 'shortest path', position: 50 } },
+      { id: 'b6', type: 'move_for_duration', params: { direction: 'forward', value: 70, unit: 'cm' } },
+      { id: 'b7', type: 'more_motor_go_relative', params: { port: 'C', position: -90, speed: 80 } }
+    ]
+  },
+  {
+    id: 'lesson_11',
+    level: 'Unit 11: WRO Smart City & Rescue Line',
+    title: 'Bài 11: Sa Bàn WRO Đô Thị Thông Minh — Giao Lộ Ngã Tư & 4 Trạm Màu',
+    mode: '2D',
+    mapType: 'wro_smart_city',
+    winCondition: 'reach_goal',
+    objective: 'Khám phá các sa bàn 2D mới: WRO Smart City, Kho Hàng Amazon, RoboCup Rescue Line, Võ Đài Sumo và Bãi Đỗ Xe Tự Động.',
+    steps: [
+      'Sử dụng menu chọn Sa bàn 2D (có 12 sa bàn mẫu đa dạng) để chuyển đổi giữa WRO Smart City, Kho Hàng, Rescue Line, Sumo Ring, Parking Garage.',
+      'Bấm "🛠 Thiết Kế Sa Bàn" để vẽ thêm đường Line chính xác ngay tại đầu con trỏ chuột hoặc chèn Mẫu Đường Line Nhanh (Hình số 8, S-Curve, Zíc-zắc).'
+    ],
+    defaultBlocks: [
+      { id: 'b0', type: 'when_program_starts', params: {} },
+      { id: 'b1', type: 'set_movement_motors', params: { ports: 'A+B' } },
+      { id: 'b2', type: 'move_for_duration', params: { direction: 'forward', value: 115, unit: 'cm' } },
+      { id: 'b3', type: 'move_with_steering', params: { steeringText: 'left: -90', steering: -90, value: 1, unit: 'rotations' } },
+      { id: 'b4', type: 'move_for_duration', params: { direction: 'forward', value: 85, unit: 'cm' } },
+      { id: 'b5', type: 'play_beep_for_seconds', params: { note: 72, seconds: 0.3 } }
     ]
   }
 ];
