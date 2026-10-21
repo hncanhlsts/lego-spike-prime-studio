@@ -1958,9 +1958,40 @@ export const CURRICULUM_LESSONS = [
     defaultBlocks: [
       { id: 'b0', type: 'when_program_starts', params: {} },
       { id: 'b1', type: 'set_movement_motors', params: { ports: 'A+B' } },
-      { id: 'b2', type: 'repeat_loop_line_follow', params: { times: 90, action: 'line_follow_port_D' } },
+      {
+        id: 'b2',
+        type: 'repeat_loop_line_follow',
+        params: { times: 90, action: 'line_follow_port_D' },
+        children: [
+          {
+            id: 'b2_ifelse',
+            type: 'if_else_block',
+            params: {},
+            conditionBlock: {
+              id: 'b2_cond',
+              type: 'sensor_is_reflection',
+              params: { port: 'D', comp: '<', value: 50 }
+            },
+            children: [
+              { id: 'b2_then', type: 'start_moving_steering', params: { steering: 30 } }
+            ],
+            elseChildren: [
+              { id: 'b2_else', type: 'start_moving_steering', params: { steering: -30 } }
+            ]
+          }
+        ]
+      },
       { id: 'b3', type: 'start_moving', params: { direction: 'forward' } },
-      { id: 'b4', type: 'wait_until_sensor', params: { port: 'E', condition: 'closer than', value: 25, unit: 'cm' } },
+      {
+        id: 'b4',
+        type: 'wait_until_sensor',
+        params: { port: 'E', condition: 'closer than', value: 25, unit: 'cm' },
+        conditionBlock: {
+          id: 'b4_cond',
+          type: 'sensor_is_closer_than',
+          params: { port: 'E', comp: 'closer than', value: 25, unit: 'cm' }
+        }
+      },
       { id: 'b5', type: 'stop_moving', params: {} },
       { id: 'b6', type: 'play_beep_for_seconds', params: { note: 72, seconds: 0.4 } },
       { id: 'b7', type: 'stop_all_cap', params: { target: 'all' } }
@@ -2013,7 +2044,7 @@ export const CURRICULUM_LESSONS = [
       { id: 'b6', type: 'move_for_duration', params: { direction: 'forward', value: 130, unit: 'cm' } },
       { id: 'b7', type: 'move_with_steering', params: { steeringText: 'left: -90', steering: -90, value: 1, unit: 'rotations' } },
       { id: 'b8', type: 'move_for_duration', params: { direction: 'forward', value: 130, unit: 'cm' } },
-      { id: 'b9', type: ' move_with_steering'.trim(), params: { steeringText: 'right: 45', steering: 45, value: 1, unit: 'rotations' } },
+      { id: 'b9', type: 'move_with_steering', params: { steeringText: 'right: 45', steering: 45, value: 1, unit: 'rotations' } },
       { id: 'b10', type: 'move_for_duration', params: { direction: 'forward', value: 120, unit: 'cm' } }
     ]
   },
@@ -2081,6 +2112,74 @@ export const CURRICULUM_LESSONS = [
   }
 ];
 
+function formatConditionPython(condBlock, fallbackParams = {}) {
+  if (!condBlock) {
+    if (fallbackParams.port && fallbackParams.condition) {
+      return `distance_sensor.distance(port.${fallbackParams.port}) < ${(fallbackParams.value || 25) * 10}`;
+    }
+    return 'True';
+  }
+  const cDef = BLOCK_DEFINITIONS[condBlock.type];
+  if (cDef && cDef.pythonTemplate) {
+    return cDef.pythonTemplate(condBlock.params || {});
+  }
+  return 'True';
+}
+
+function generateBlockLinesRecursive(blockList, indentLevel = 1) {
+  const pad = '    '.repeat(indentLevel);
+  const out = [];
+  if (!blockList || blockList.length === 0) {
+    out.push(`${pad}pass`);
+    return out;
+  }
+
+  for (const b of blockList) {
+    const def = BLOCK_DEFINITIONS[b.type];
+    if (!def) continue;
+    const p = b.params || {};
+
+    if (b.type === 'repeat_loop_line_follow') {
+      out.push(`${pad}for _ in range(${p.times ?? 10}):`);
+      if (b.children && b.children.length > 0) {
+        out.push(...generateBlockLinesRecursive(b.children, indentLevel + 1));
+      } else {
+        out.push(`${pad}    err = color_sensor.reflection(port.D) - 50`);
+        out.push(`${pad}    motor_pair.move(motor_pair.PAIR_1, int(err * 1.2), velocity=450)`);
+        out.push(`${pad}    await runloop.sleep_ms(30)`);
+      }
+    } else if (b.type === 'forever_loop') {
+      out.push(`${pad}while True:`);
+      if (b.children && b.children.length > 0) {
+        out.push(...generateBlockLinesRecursive(b.children, indentLevel + 1));
+      } else {
+        out.push(`${pad}    await runloop.sleep_ms(50)`);
+      }
+    } else if (b.type === 'if_then_block') {
+      const condPy = formatConditionPython(b.conditionBlock, p);
+      out.push(`${pad}if ${condPy}:`);
+      out.push(...generateBlockLinesRecursive(b.children, indentLevel + 1));
+    } else if (b.type === 'if_else_block') {
+      const condPy = formatConditionPython(b.conditionBlock, p);
+      out.push(`${pad}if ${condPy}:`);
+      out.push(...generateBlockLinesRecursive(b.children, indentLevel + 1));
+      out.push(`${pad}else:`);
+      out.push(...generateBlockLinesRecursive(b.elseChildren, indentLevel + 1));
+    } else if (b.type === 'repeat_until_block') {
+      const condPy = formatConditionPython(b.conditionBlock, p);
+      out.push(`${pad}while not (${condPy}):`);
+      out.push(...generateBlockLinesRecursive(b.children, indentLevel + 1));
+    } else if (b.type === 'wait_until_sensor') {
+      const condPy = formatConditionPython(b.conditionBlock, p);
+      out.push(`${pad}while not (${condPy}):`);
+      out.push(`${pad}    await runloop.sleep_ms(20)`);
+    } else {
+      out.push(`${pad}${def.pythonTemplate(p)}`);
+    }
+  }
+  return out;
+}
+
 export function generateSpikePythonCode(blocks) {
   const lines = [
     '# LEGO® Education SPIKE™ Prime - Python 3 API (Auto-generated from Word Blocks)',
@@ -2095,12 +2194,7 @@ export function generateSpikePythonCode(blocks) {
   if (!blocks || blocks.length === 0) {
     lines.push('    pass');
   } else {
-    blocks.forEach((b) => {
-      const def = BLOCK_DEFINITIONS[b.type];
-      if (def) {
-        lines.push(`    ${def.pythonTemplate(b.params)}`);
-      }
-    });
+    lines.push(...generateBlockLinesRecursive(blocks, 1));
   }
 
   lines.push('');

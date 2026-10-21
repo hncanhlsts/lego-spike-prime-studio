@@ -63,7 +63,7 @@ const EMPTY_ARENA_CONFIG = {
   backgroundImage: ''
 };
 
-const MISSIONS_STORAGE_KEY = 'spike_prime_custom_missions_v2';
+const MISSIONS_STORAGE_KEY = 'spike_prime_custom_missions_v3';
 
 function loadInitialMissions() {
   try {
@@ -233,16 +233,177 @@ export default function App() {
     }
   };
 
+  const makeUid = (prefix = 'blk') =>
+    `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+
+  const cloneBlockTree = (blk) => ({
+    ...blk,
+    id: makeUid('blk'),
+    params: { ...(blk.params || {}) },
+    conditionBlock: blk.conditionBlock ? cloneBlockTree(blk.conditionBlock) : undefined,
+    children: Array.isArray(blk.children) ? blk.children.map(cloneBlockTree) : undefined,
+    elseChildren: Array.isArray(blk.elseChildren) ? blk.elseChildren.map(cloneBlockTree) : undefined
+  });
+
+  const isDescendantOfBlock = (parentBlk, targetId) => {
+    if (!parentBlk || !targetId) return false;
+    if (parentBlk.id === targetId) return true;
+    if (Array.isArray(parentBlk.children)) {
+      if (parentBlk.children.some((c) => isDescendantOfBlock(c, targetId))) return true;
+    }
+    if (Array.isArray(parentBlk.elseChildren)) {
+      if (parentBlk.elseChildren.some((c) => isDescendantOfBlock(c, targetId))) return true;
+    }
+    return false;
+  };
+
+  const findBlockByIdRecursive = (list, targetId) => {
+    for (const b of list || []) {
+      if (b.id === targetId) return b;
+      if (b.children) {
+        const found = findBlockByIdRecursive(b.children, targetId);
+        if (found) return found;
+      }
+      if (b.elseChildren) {
+        const found = findBlockByIdRecursive(b.elseChildren, targetId);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+
+  const removeBlockFromTree = (list, targetId) => {
+    let removed = null;
+    const walk = (arr) => {
+      const out = [];
+      for (const item of arr || []) {
+        if (item.id === targetId) {
+          removed = item;
+          continue;
+        }
+        const nextItem = { ...item };
+        if (Array.isArray(item.children)) {
+          nextItem.children = walk(item.children);
+        }
+        if (Array.isArray(item.elseChildren)) {
+          nextItem.elseChildren = walk(item.elseChildren);
+        }
+        out.push(nextItem);
+      }
+      return out;
+    };
+    const nextList = walk(list);
+    return { nextList, removed };
+  };
+
+  const insertBlockIntoTree = (
+    list,
+    targetContainerId,
+    targetBranch,
+    targetIndex,
+    blockToInsert
+  ) => {
+    const def = BLOCK_DEFINITIONS[blockToInsert.type];
+    if (!targetContainerId || targetContainerId === 'root') {
+      if (def?.shape === 'hat') {
+        return [
+          blockToInsert,
+          ...(list || []).filter((b) => BLOCK_DEFINITIONS[b.type]?.shape !== 'hat')
+        ];
+      }
+      const next = [...(list || [])];
+      let idx = Math.max(0, Math.min(next.length, targetIndex));
+      if (idx === 0 && next.length > 0 && BLOCK_DEFINITIONS[next[0].type]?.shape === 'hat') {
+        idx = 1;
+      }
+      next.splice(idx, 0, blockToInsert);
+      return next;
+    }
+
+    const branchKey = targetBranch === 'elseChildren' ? 'elseChildren' : 'children';
+    const walk = (arr) =>
+      (arr || []).map((item) => {
+        if (item.id === targetContainerId) {
+          const curBranch = Array.isArray(item[branchKey]) ? [...item[branchKey]] : [];
+          const idx = Math.max(0, Math.min(curBranch.length, targetIndex));
+          curBranch.splice(idx, 0, blockToInsert);
+          return { ...item, [branchKey]: curBranch };
+        }
+        const updated = { ...item };
+        if (Array.isArray(item.children)) {
+          updated.children = walk(item.children);
+        }
+        if (Array.isArray(item.elseChildren)) {
+          updated.elseChildren = walk(item.elseChildren);
+        }
+        return updated;
+      });
+
+    return walk(list);
+  };
+
+  const setConditionOnBlockRecursive = (list, targetBlockId, conditionBlock) => {
+    const walk = (arr) =>
+      (arr || []).map((item) => {
+        if (item.id === targetBlockId) {
+          return { ...item, conditionBlock };
+        }
+        const updated = { ...item };
+        if (Array.isArray(item.children)) {
+          updated.children = walk(item.children);
+        }
+        if (Array.isArray(item.elseChildren)) {
+          updated.elseChildren = walk(item.elseChildren);
+        }
+        return updated;
+      });
+    return walk(list);
+  };
+
+  const findFirstConditionAcceptingBlockId = (list) => {
+    const CONDITION_TYPES = new Set([
+      'if_then_block',
+      'if_else_block',
+      'wait_until_sensor',
+      'repeat_until_block',
+      'when_condition'
+    ]);
+    let fallbackId = null;
+    const walk = (arr) => {
+      for (const b of arr || []) {
+        if (CONDITION_TYPES.has(b.type)) {
+          if (!b.conditionBlock) return b.id;
+          fallbackId = b.id;
+        }
+        if (b.children) {
+          const r = walk(b.children);
+          if (r) return r;
+        }
+        if (b.elseChildren) {
+          const r = walk(b.elseChildren);
+          if (r) return r;
+        }
+      }
+      return null;
+    };
+    return walk(list) || fallbackId;
+  };
+
   const handlePointerDragStart = (e, info) => {
     const initial = {
       source: info.source,
       block: info.block,
       index: info.index,
+      parentId: info.parentId || 'root',
+      parentBranch: info.parentBranch || 'root',
       startX: e.clientX,
       startY: e.clientY,
       x: e.clientX,
       y: e.clientY,
       hasMoved: false,
+      targetContainerId: info.source === 'canvas' ? info.parentId || 'root' : 'root',
+      targetBranch: info.source === 'canvas' ? info.parentBranch || 'root' : 'root',
+      targetBooleanBlockId: null,
       dropIndex: info.source === 'canvas' ? info.index : blocks.length,
       overTrash: false,
       overCanvas: info.source === 'canvas'
@@ -280,28 +441,92 @@ export default function App() {
         }
       }
 
+      const def = BLOCK_DEFINITIONS[cur.block.type];
+      let targetContainerId = 'root';
+      let targetBranch = 'root';
+      let targetBooleanBlockId = null;
       let nextDropIndex = blocks.length;
+
       if (overCanvas && canvasAreaRef.current) {
-        const blockNodes = canvasAreaRef.current.querySelectorAll('[data-canvas-block-index]');
-        for (let i = 0; i < blockNodes.length; i++) {
-          const rect = blockNodes[i].getBoundingClientRect();
-          const midY = rect.top + rect.height / 2;
-          if (e.clientY < midY) {
-            nextDropIndex = i;
-            break;
+        const hitElements = document.elementsFromPoint(e.clientX, e.clientY);
+
+        // 1. Nếu đang kéo khối điều kiện Lục giác (Boolean < >), tìm ô < > mục tiêu
+        if (def?.shape === 'boolean') {
+          for (const el of hitElements) {
+            const boolAttr = el.getAttribute?.('data-boolean-target-block-id');
+            if (boolAttr) {
+              targetBooleanBlockId = boolAttr;
+              break;
+            }
+          }
+          if (!targetBooleanBlockId) {
+            for (const el of hitElements) {
+              const blkId = el.getAttribute?.('data-block-id');
+              if (blkId) {
+                const targetBlk = findBlockByIdRecursive(blocks, blkId);
+                if (
+                  targetBlk &&
+                  [
+                    'if_then_block',
+                    'if_else_block',
+                    'wait_until_sensor',
+                    'repeat_until_block',
+                    'when_condition'
+                  ].includes(targetBlk.type)
+                ) {
+                  targetBooleanBlockId = blkId;
+                  break;
+                }
+              }
+            }
+          }
+        } else {
+          // 2. Nếu đang kéo khối Stack / C-Block, kiểm tra xem con trỏ có nằm trong khe chữ C (repeat / forever / if / else) không
+          if (def?.shape !== 'hat') {
+            for (const el of hitElements) {
+              const cId = el.getAttribute?.('data-c-container-id');
+              const cBranch = el.getAttribute?.('data-c-branch');
+              if (cId && cBranch) {
+                // Không cho phép thả một khối C-block cha vào chính nhánh con của nó
+                if (cur.source === 'canvas' && isDescendantOfBlock(cur.block, cId)) {
+                  continue;
+                }
+                targetContainerId = cId;
+                targetBranch = cBranch;
+                break;
+              }
+            }
+          }
+
+          // Tính toán vị trí chèn (dropIndex) bên trong Container đích (Root hoặc khe chữ C)
+          const selector =
+            targetContainerId === 'root'
+              ? '[data-parent-id="root"]'
+              : `[data-parent-id="${targetContainerId}"][data-parent-branch="${targetBranch}"]`;
+          const siblingNodes = canvasAreaRef.current.querySelectorAll(selector);
+          nextDropIndex = siblingNodes.length;
+
+          for (let i = 0; i < siblingNodes.length; i++) {
+            const rect = siblingNodes[i].getBoundingClientRect();
+            const midY = rect.top + rect.height / 2;
+            if (e.clientY < midY) {
+              nextDropIndex = i;
+              break;
+            }
+          }
+
+          if (targetContainerId === 'root') {
+            if (def?.shape === 'hat') {
+              nextDropIndex = 0;
+            } else if (
+              nextDropIndex === 0 &&
+              blocks.length > 0 &&
+              BLOCK_DEFINITIONS[blocks[0].type]?.shape === 'hat'
+            ) {
+              nextDropIndex = 1;
+            }
           }
         }
-      }
-
-      const def = BLOCK_DEFINITIONS[cur.block.type];
-      if (def?.shape === 'hat') {
-        nextDropIndex = 0;
-      } else if (
-        nextDropIndex === 0 &&
-        blocks.length > 0 &&
-        BLOCK_DEFINITIONS[blocks[0].type]?.shape === 'hat'
-      ) {
-        nextDropIndex = 1;
       }
 
       const updated = {
@@ -311,6 +536,9 @@ export default function App() {
         hasMoved: moved,
         overTrash,
         overCanvas,
+        targetContainerId,
+        targetBranch,
+        targetBooleanBlockId,
         dropIndex: nextDropIndex
       };
       dragStateRef.current = updated;
@@ -326,49 +554,94 @@ export default function App() {
 
       const def = BLOCK_DEFINITIONS[cur.block.type];
 
+      // Click nhanh vào khối ở cột bên trái
       if (!cur.hasMoved && cur.source === 'palette') {
-        handleInsertBlockAt(cur.block.type, blocks.length);
+        if (def?.shape === 'boolean') {
+          const targetId = findFirstConditionAcceptingBlockId(blocks);
+          if (targetId) {
+            const condBlk = {
+              id: makeUid('cond'),
+              type: cur.block.type,
+              params: { ...(def.defaultParams || {}) }
+            };
+            setBlocks((prev) => setConditionOnBlockRecursive(prev, targetId, condBlk));
+            playSnapClick(600);
+            setStatusLog(`✨ Đã gắn khối điều kiện <${def.nameEn}> vào ô lục giác < >!`);
+            return;
+          }
+        }
+        handleInsertBlockAt(cur.block.type, blocks.length, 'root', 'root');
         playSnapClick(560);
         return;
       }
 
       if (!cur.hasMoved) return;
 
+      // Kéo khối từ Canvas sang vùng thùng rác cột bên trái để xóa
       if (cur.source === 'canvas' && cur.overTrash) {
-        setBlocks((prev) => prev.filter((b) => b.id !== cur.block.id));
+        setBlocks((prev) => removeBlockFromTree(prev, cur.block.id).nextList);
         playSnapClick(320);
-        setStatusLog(`🗑 Đã kéo thả xóa khối [${def?.nameEn}] khỏi chồng lệnh.`);
+        setStatusLog(`🗑 Đã kéo thả xóa khối [${def?.nameEn}] khỏi chương trình.`);
         return;
       }
 
+      // Thả khối điều kiện Boolean (< >) vào ô lục giác của if / if-else / wait-until / repeat-until
+      if (cur.overCanvas && def?.shape === 'boolean') {
+        const targetId = cur.targetBooleanBlockId || findFirstConditionAcceptingBlockId(blocks);
+        if (targetId) {
+          const condBlk = {
+            id: makeUid('cond'),
+            type: cur.block.type,
+            params: { ...(cur.block.params || def.defaultParams || {}) }
+          };
+          setBlocks((prev) => setConditionOnBlockRecursive(prev, targetId, condBlk));
+          playSnapClick(620);
+          setStatusLog(`✨ Đã lắp điều kiện <${def.nameEn}> vào ô lục giác < >!`);
+          return;
+        }
+      }
+
+      // Kéo khối từ Palette bên trái thả vào Root hoặc vào bên trong khe chữ C (repeat / forever / if / else)
       if (cur.source === 'palette' && cur.overCanvas) {
-        handleInsertBlockAt(cur.block.type, cur.dropIndex);
+        handleInsertBlockAt(
+          cur.block.type,
+          cur.dropIndex,
+          cur.targetContainerId,
+          cur.targetBranch
+        );
         playSnapClick(580);
         return;
       }
 
+      // Di chuyển khối đang có trên Canvas (giữa Root và các khe chữ C lồng nhau)
       if (cur.source === 'canvas' && cur.overCanvas) {
         setBlocks((prev) => {
-          const next = [...prev];
-          const fromIdx = cur.index;
-          if (fromIdx < 0 || fromIdx >= next.length) return prev;
-          const [movedItem] = next.splice(fromIdx, 1);
-          let targetIdx = cur.dropIndex;
-          if (targetIdx > fromIdx) targetIdx -= 1;
-          targetIdx = Math.max(0, Math.min(next.length, targetIdx));
+          const { nextList, removed } = removeBlockFromTree(prev, cur.block.id);
+          if (!removed) return prev;
+          let adjustedIndex = cur.dropIndex;
           if (
-            targetIdx === 0 &&
-            next.length > 0 &&
-            BLOCK_DEFINITIONS[next[0].type]?.shape === 'hat' &&
-            BLOCK_DEFINITIONS[movedItem.type]?.shape !== 'hat'
+            cur.parentId === cur.targetContainerId &&
+            cur.parentBranch === cur.targetBranch &&
+            adjustedIndex > cur.index
           ) {
-            targetIdx = 1;
+            adjustedIndex -= 1;
           }
-          next.splice(targetIdx, 0, movedItem);
-          return next;
+          return insertBlockIntoTree(
+            nextList,
+            cur.targetContainerId,
+            cur.targetBranch,
+            adjustedIndex,
+            removed
+          );
         });
         playSnapClick(540);
-        setStatusLog(`Đã di chuyển khối [${def?.nameEn}] tới vị trí #${cur.dropIndex + 1}.`);
+        setStatusLog(
+          cur.targetContainerId === 'root'
+            ? `Đã di chuyển khối [${def?.nameEn}] tới vị trí #${cur.dropIndex + 1}.`
+            : `↳ Đã lồng khối [${def?.nameEn}] vào bên trong nhánh (${
+                cur.targetBranch === 'elseChildren' ? 'else' : 'then / loop'
+              })!`
+        );
       }
     };
 
@@ -380,48 +653,56 @@ export default function App() {
     };
   }, [blocks]);
 
-  const handleInsertBlockAt = (typeKey, targetIndex) => {
+  const handleInsertBlockAt = (
+    typeKey,
+    targetIndex,
+    targetContainerId = 'root',
+    targetBranch = 'root'
+  ) => {
     const def = BLOCK_DEFINITIONS[typeKey];
     if (!def) return;
+    const isCBlock = def.shape === 'c_block';
     const newBlock = {
-      id: `blk_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      id: makeUid('blk'),
       type: typeKey,
-      params: { ...def.defaultParams }
+      params: { ...def.defaultParams },
+      children: isCBlock ? [] : undefined,
+      elseChildren: typeKey === 'if_else_block' ? [] : undefined
     };
 
-    if (def.shape === 'hat') {
-      setBlocks((prev) => [
-        newBlock,
-        ...prev.filter((b) => BLOCK_DEFINITIONS[b.type]?.shape !== 'hat')
-      ]);
-    } else {
-      setBlocks((prev) => {
-        const next = [...prev];
-        let idx = Math.max(0, Math.min(next.length, targetIndex));
-        if (idx === 0 && next.length > 0 && BLOCK_DEFINITIONS[next[0].type]?.shape === 'hat') {
-          idx = 1;
-        }
-        next.splice(idx, 0, newBlock);
-        return next;
-      });
-    }
-    setStatusLog(`✨ Đã ghép khối [${def.nameEn}] (${def.nameVi}) vào chồng lệnh!`);
+    setBlocks((prev) =>
+      insertBlockIntoTree(prev, targetContainerId, targetBranch, targetIndex, newBlock)
+    );
+    setStatusLog(
+      targetContainerId === 'root'
+        ? `✨ Đã ghép khối [${def.nameEn}] (${def.nameVi}) vào chồng lệnh!`
+        : `↳ Đã chèn khối [${def.nameEn}] vào bên trong khối điều khiển lồng nhau!`
+    );
   };
 
-  const handleDuplicateBlock = (idx) => {
+  const handleDuplicateBlock = (targetBlockId) => {
     setBlocks((prev) => {
-      const target = prev[idx];
-      if (!target) return prev;
-      const def = BLOCK_DEFINITIONS[target.type];
-      if (def?.shape === 'hat') return prev;
-      const clone = {
-        id: `blk_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-        type: target.type,
-        params: { ...target.params }
+      const walk = (arr) => {
+        const out = [];
+        for (const item of arr || []) {
+          const nextItem = { ...item };
+          if (Array.isArray(item.children)) {
+            nextItem.children = walk(item.children);
+          }
+          if (Array.isArray(item.elseChildren)) {
+            nextItem.elseChildren = walk(item.elseChildren);
+          }
+          out.push(nextItem);
+          if (item.id === targetBlockId) {
+            const def = BLOCK_DEFINITIONS[item.type];
+            if (def?.shape !== 'hat') {
+              out.push(cloneBlockTree(item));
+            }
+          }
+        }
+        return out;
       };
-      const next = [...prev];
-      next.splice(idx + 1, 0, clone);
-      return next;
+      return walk(prev);
     });
     playSnapClick(600);
     setStatusLog('Đã nhân bản khối lệnh.');
@@ -658,14 +939,38 @@ export default function App() {
   };
 
   const handleUpdateBlockParam = (id, key, val) => {
-    setBlocks((prev) =>
-      prev.map((b) => (b.id === id ? { ...b, params: { ...b.params, [key]: val } } : b))
-    );
+    const walk = (arr) =>
+      (arr || []).map((b) => {
+        if (b.id === id) {
+          return { ...b, params: { ...(b.params || {}), [key]: val } };
+        }
+        const updated = { ...b };
+        if (b.conditionBlock && b.conditionBlock.id === id) {
+          updated.conditionBlock = {
+            ...b.conditionBlock,
+            params: { ...(b.conditionBlock.params || {}), [key]: val }
+          };
+        }
+        if (Array.isArray(b.children)) {
+          updated.children = walk(b.children);
+        }
+        if (Array.isArray(b.elseChildren)) {
+          updated.elseChildren = walk(b.elseChildren);
+        }
+        return updated;
+      });
+    setBlocks((prev) => walk(prev));
   };
 
   const handleRemoveBlock = (id) => {
-    setBlocks((prev) => prev.filter((b) => b.id !== id));
+    setBlocks((prev) => removeBlockFromTree(prev, id).nextList);
     playSnapClick(320);
+  };
+
+  const handleClearCondition = (blockId) => {
+    setBlocks((prev) => setConditionOnBlockRecursive(prev, blockId, undefined));
+    playSnapClick(340);
+    setStatusLog('Đã gỡ khối điều kiện ra khỏi ô lục giác < >.');
   };
 
   const handleTogglePixel = (r, c) => {
@@ -813,6 +1118,54 @@ export default function App() {
     return false;
   };
 
+  // Đánh giá biểu thức điều kiện Boolean (< >) khi chạy if / if-else / wait-until / repeat-until
+  const evaluateBooleanCondition = (condBlock, fallbackParams, pose) => {
+    const live = computeLiveArenaSensors(pose.x, pose.y, pose.angle);
+    const curColor = live.detectedColor?.color || telemetry.colorSensor.color;
+    const curRef = live.detectedColor?.reflection ?? telemetry.colorSensor.reflection;
+    const curDist = live.distanceCm ?? pose.distanceCm;
+
+    if (!condBlock) {
+      if (fallbackParams?.condition === 'closer than' || fallbackParams?.value !== undefined) {
+        return curDist <= Number(fallbackParams.value ?? 25);
+      }
+      if (fallbackParams?.color) {
+        return curColor === fallbackParams.color;
+      }
+      return true;
+    }
+
+    const cp = condBlock.params || {};
+    switch (condBlock.type) {
+      case 'sensor_is_color':
+        return curColor === (cp.color || 'RED');
+      case 'sensor_is_reflection': {
+        const target = Number(cp.value ?? 50);
+        if (cp.comp === '>') return curRef > target;
+        if (cp.comp === '=') return curRef === target;
+        return curRef < target;
+      }
+      case 'sensor_is_pressed':
+        return cp.state === 'released'
+          ? !telemetry.forceSensor.pressed
+          : telemetry.forceSensor.pressed;
+      case 'sensor_is_closer_than': {
+        const thresh = Number(cp.value ?? 25);
+        return cp.comp === 'farther than' ? curDist > thresh : curDist <= thresh;
+      }
+      case 'op_lt':
+        return Number(cp.a ?? 0) < Number(cp.b ?? 100);
+      case 'op_eq':
+        return String(cp.a ?? 0) === String(cp.b ?? 100);
+      case 'op_gt':
+        return Number(cp.a ?? 0) > Number(cp.b ?? 100);
+      case 'op_not':
+        return false;
+      default:
+        return true;
+    }
+  };
+
   const runProgram = async () => {
     if (isRunning) return;
     stopFlagRef.current = false;
@@ -824,315 +1177,142 @@ export default function App() {
     let moveSpeed = 50;
     let motorSpeeds = { A: 75, B: 75, C: 75, D: 75, E: 75, F: 75 };
 
-    for (const block of blocks) {
-      if (stopFlagRef.current) break;
-      setActiveBlockId(block.id);
-      const p = block.params || {};
+    const executeBlockList = async (blockList) => {
+      for (const block of blockList || []) {
+        if (stopFlagRef.current) break;
+        setActiveBlockId(block.id);
+        const p = block.params || {};
 
-      switch (block.type) {
-        case 'when_program_starts':
-        case 'when_color_is':
-        case 'when_pressed':
-        case 'when_closer_than':
-        case 'when_tilted':
-        case 'when_shaken':
-        case 'when_hub_button':
-        case 'define_my_block':
-          await sleep(220);
-          break;
+        switch (block.type) {
+          case 'when_program_starts':
+          case 'when_color_is':
+          case 'when_pressed':
+          case 'when_closer_than':
+          case 'when_tilted':
+          case 'when_shaken':
+          case 'when_hub_button':
+          case 'when_condition':
+          case 'define_my_block':
+            await sleep(200);
+            break;
 
-        case 'motor_set_speed':
-          motorSpeeds[p.port] = Number(p.speed);
-          setStatusLog(`${p.port} set speed to ${p.speed}%`);
-          await sleep(180);
-          break;
+          case 'motor_set_speed':
+            motorSpeeds[p.port] = Number(p.speed);
+            setStatusLog(`${p.port} set speed to ${p.speed}%`);
+            await sleep(160);
+            break;
 
-        case 'motor_run_for_duration': {
-          const sign = p.direction === 'clockwise' ? 1 : -1;
-          const totalDegrees =
-            p.unit === 'rotations'
-              ? p.value * 360
-              : p.unit === 'degrees'
-              ? p.value
-              : p.value * 360;
-          const steps = 16;
-          const delta = (totalDegrees * sign) / steps;
-          const spd = motorSpeeds[p.port] || 75;
-          setStatusLog(`${p.port} run ${p.direction} for ${p.value} ${p.unit}`);
+          case 'motor_run_for_duration': {
+            const sign = p.direction === 'clockwise' ? 1 : -1;
+            const totalDegrees =
+              p.unit === 'rotations'
+                ? p.value * 360
+                : p.unit === 'degrees'
+                ? p.value
+                : p.value * 360;
+            const steps = 16;
+            const delta = (totalDegrees * sign) / steps;
+            const spd = motorSpeeds[p.port] || 75;
+            setStatusLog(`${p.port} run ${p.direction} for ${p.value} ${p.unit}`);
 
-          for (let i = 0; i < steps; i++) {
-            if (stopFlagRef.current) break;
-            setTelemetry((prev) => ({
-              ...prev,
-              motors: {
-                ...prev.motors,
-                [p.port]: {
-                  angle: (prev.motors[p.port]?.angle || 0) + delta,
-                  speed: spd
+            for (let i = 0; i < steps; i++) {
+              if (stopFlagRef.current) break;
+              setTelemetry((prev) => ({
+                ...prev,
+                motors: {
+                  ...prev.motors,
+                  [p.port]: {
+                    angle: (prev.motors[p.port]?.angle || 0) + delta,
+                    speed: spd
+                  }
                 }
+              }));
+              if (p.port === 'C') {
+                pose.armAngle = Math.max(0, Math.min(85, pose.armAngle + delta * 0.15));
+                setRobotPose({ ...pose });
               }
-            }));
-            if (p.port === 'C') {
-              pose.armAngle = Math.max(0, Math.min(85, pose.armAngle + delta * 0.15));
-              setRobotPose({ ...pose });
+              await sleep(28);
             }
-            await sleep(30);
-          }
-          setTelemetry((prev) => ({
-            ...prev,
-            motors: {
-              ...prev.motors,
-              [p.port]: { ...prev.motors[p.port], speed: 0 }
-            }
-          }));
-          break;
-        }
-
-        case 'motor_go_to_position': {
-          const target = Number(p.position);
-          const steps = 15;
-          const currentAng = pose.armAngle;
-          const delta = (target - currentAng) / steps;
-          setStatusLog(`${p.port} go ${p.direction} to position ${target}°`);
-
-          for (let i = 0; i < steps; i++) {
-            if (stopFlagRef.current) break;
-            pose.armAngle += delta;
-            setRobotPose({ ...pose });
             setTelemetry((prev) => ({
               ...prev,
               motors: {
                 ...prev.motors,
-                [p.port]: { angle: Math.round(pose.armAngle), speed: motorSpeeds[p.port] || 75 }
+                [p.port]: { ...prev.motors[p.port], speed: 0 }
               }
             }));
-            await sleep(30);
+            break;
           }
-          break;
-        }
 
-        case 'motor_start':
-        case 'more_motor_start_power':
-          setStatusLog(`${p.port} start motor`);
-          await sleep(250);
-          break;
+          case 'motor_go_to_position': {
+            const target = Number(p.position);
+            const steps = 15;
+            const currentAng = pose.armAngle;
+            const delta = (target - currentAng) / steps;
+            setStatusLog(`${p.port} go ${p.direction} to position ${target}°`);
 
-        case 'motor_stop':
-          setStatusLog(`${p.port} stop motor`);
-          await sleep(200);
-          break;
-
-        case 'set_movement_motors':
-          setStatusLog(`set movement motors to ${p.ports}`);
-          await sleep(180);
-          break;
-
-        case 'set_movement_speed':
-          moveSpeed = Number(p.speed);
-          setStatusLog(`set movement speed to ${moveSpeed}%`);
-          await sleep(180);
-          break;
-
-        case 'set_motor_rotation_distance':
-          setStatusLog(`set 1 motor rotation to ${p.distance} ${p.unit} moved`);
-          await sleep(180);
-          break;
-
-        case 'move_for_duration': {
-          const sign = p.direction === 'forward' ? 1 : -1;
-          const cmDist =
-            p.unit === 'cm'
-              ? p.value
-              : p.unit === 'rotations'
-              ? p.value * 17.5
-              : p.unit === 'degrees'
-              ? (p.value / 360) * 17.5
-              : p.value * 25;
-          const totalPx = cmDist * 1.1;
-          const steps = 24;
-          const stepDist = (totalPx / steps) * sign;
-          setStatusLog(`move ${p.direction === 'forward' ? '↑' : '↓'} for ${p.value} ${p.unit}`);
-
-          for (let i = 0; i < steps; i++) {
-            if (stopFlagRef.current) break;
-            const rad = (pose.angle * Math.PI) / 180;
-            pose.x = Math.max(30, Math.min(480, pose.x + Math.cos(rad) * stepDist));
-            pose.y = Math.max(30, Math.min(235, pose.y + Math.sin(rad) * stepDist));
-            const live = computeLiveArenaSensors(pose.x, pose.y, pose.angle);
-            pose.distanceCm = live.distanceCm;
-            pose.trail = [...pose.trail, { x: pose.x, y: pose.y }];
-            setRobotPose({ ...pose });
-
-            setTelemetry((prev) => ({
-              ...prev,
-              distanceSensor: { cm: pose.distanceCm },
-              colorSensor: live.detectedColor || prev.colorSensor,
-              motors: {
-                ...prev.motors,
-                A: { angle: prev.motors.A.angle + sign * 15, speed: moveSpeed },
-                B: { angle: prev.motors.B.angle + sign * 15, speed: moveSpeed }
-              }
-            }));
-            await sleep(30);
-          }
-          break;
-        }
-
-        case 'move_with_steering': {
-          const turnDeg = Number(p.steering || 90);
-          const steps = 18;
-          const stepAng = turnDeg / steps;
-          setStatusLog(`move [${p.steeringText || `steering ${turnDeg}`}] for ${p.value} ${p.unit}`);
-          for (let i = 0; i < steps; i++) {
-            if (stopFlagRef.current) break;
-            pose.angle += stepAng;
-            setRobotPose({ ...pose });
-            setTelemetry((prev) => ({
-              ...prev,
-              gyroYaw: pose.angle
-            }));
-            await sleep(28);
-          }
-          break;
-        }
-
-        case 'start_moving':
-        case 'start_moving_steering':
-        case 'more_movement_tank':
-          setStatusLog(`start moving`);
-          await sleep(220);
-          break;
-
-        case 'stop_moving':
-          setStatusLog('stop moving');
-          await sleep(220);
-          break;
-
-        case 'light_matrix_turn_on_for_seconds': {
-          const pat = LED_PATTERNS[p.pattern] || LED_PATTERNS.SMILE;
-          setLedMatrix(pat);
-          setStatusLog(`turn on [${p.pattern}] for ${p.seconds} seconds`);
-          await sleep((p.seconds || 1) * 1000);
-          break;
-        }
-
-        case 'light_matrix_turn_on': {
-          const pat = LED_PATTERNS[p.pattern] || LED_PATTERNS.HEART;
-          setLedMatrix(pat);
-          setStatusLog(`turn on [${p.pattern}]`);
-          await sleep(400);
-          break;
-        }
-
-        case 'light_matrix_set_pixel': {
-          const cIdx = Math.max(0, Math.min(4, (p.x || 1) - 1));
-          const rIdx = Math.max(0, Math.min(4, (p.y || 1) - 1));
-          setLedMatrix((prev) =>
-            prev.map((row, r) =>
-              row.map((val, c) => (r === rIdx && c === cIdx ? (p.brightness > 0 ? 9 : 0) : val))
-            )
-          );
-          setStatusLog(`set pixel at (${p.x}, ${p.y}) to ${p.brightness}%`);
-          await sleep(280);
-          break;
-        }
-
-        case 'light_matrix_write':
-          setStatusLog(`write "${p.text}" on 5x5 Light Matrix`);
-          setLedMatrix(LED_PATTERNS.SMILE);
-          await sleep(600);
-          break;
-
-        case 'light_matrix_turn_off':
-          setLedMatrix(LED_PATTERNS.OFF);
-          setStatusLog('turn off pixels');
-          await sleep(250);
-          break;
-
-        case 'set_center_button_light':
-          setTelemetry((prev) => ({ ...prev, centerButtonColor: p.color }));
-          setStatusLog(`set Power Button light to ${p.color}`);
-          await sleep(250);
-          break;
-
-        case 'light_up_distance_sensor':
-          setStatusLog(`${p.port} light up Distance Sensor`);
-          await sleep(300);
-          break;
-
-        case 'play_beep_for_seconds':
-        case 'music_play_note':
-        case 'music_play_drum': {
-          const dur = p.seconds || p.beats || 0.3;
-          setTelemetry((prev) => ({ ...prev, hubSoundPlaying: true }));
-          playBeepSound(p.note || 60, dur);
-          setStatusLog(`play sound/note for ${dur}s`);
-          await sleep(dur * 1000);
-          setTelemetry((prev) => ({ ...prev, hubSoundPlaying: false }));
-          break;
-        }
-
-        case 'play_sound_until_done':
-          setTelemetry((prev) => ({ ...prev, hubSoundPlaying: true }));
-          playBeepSound(67, 0.4);
-          setStatusLog(`play sound [${p.soundName}] until done`);
-          await sleep(450);
-          setTelemetry((prev) => ({ ...prev, hubSoundPlaying: false }));
-          break;
-
-        case 'stop_all_sounds':
-          setTelemetry((prev) => ({ ...prev, hubSoundPlaying: false }));
-          setStatusLog('stop all sounds');
-          await sleep(200);
-          break;
-
-        case 'wait_seconds':
-          setStatusLog(`wait ${p.seconds} seconds`);
-          await sleep((p.seconds || 1) * 1000);
-          break;
-
-        case 'repeat_loop_line_follow': {
-          setStatusLog(`repeat (${p.times}): Đang dò line đen bằng Cảm biến màu D...`);
-          // Nếu sa bàn có đường line đen tự vẽ (custom lines), Robot sẽ bám theo đường line tự vẽ đó!
-          const customPoly =
-            arenaConfig?.lines?.length > 0 && arenaConfig.lines[0].length > 1
-              ? arenaConfig.lines.flat()
-              : null;
-
-          if (customPoly && customPoly.length > 1) {
-            for (let i = 0; i < customPoly.length; i++) {
+            for (let i = 0; i < steps; i++) {
               if (stopFlagRef.current) break;
-              const targetPt = customPoly[i];
-              const dx = targetPt.x - pose.x;
-              const dy = targetPt.y - pose.y;
-              if (Math.hypot(dx, dy) > 2) {
-                pose.angle = Math.round((Math.atan2(dy, dx) * 180) / Math.PI);
-              }
-              pose.x = targetPt.x;
-              pose.y = targetPt.y;
-              const live = computeLiveArenaSensors(pose.x, pose.y, pose.angle);
-              pose.distanceCm = live.distanceCm;
-              pose.trail = [...pose.trail, { x: pose.x, y: pose.y }];
+              pose.armAngle += delta;
               setRobotPose({ ...pose });
               setTelemetry((prev) => ({
                 ...prev,
-                gyroYaw: pose.angle,
-                colorSensor: live.detectedColor || {
-                  color: i % 2 === 0 ? 'BLACK' : 'WHITE',
-                  reflection: i % 2 === 0 ? 14 : 68
-                },
-                distanceSensor: { cm: pose.distanceCm }
+                motors: {
+                  ...prev.motors,
+                  [p.port]: { angle: Math.round(pose.armAngle), speed: motorSpeeds[p.port] || 75 }
+                }
               }));
-              await sleep(34);
+              await sleep(28);
             }
-          } else {
-            const totalSteps = Math.min(45, Math.max(15, Math.round((p.times || 80) / 2.2)));
-            for (let i = 0; i < totalSteps; i++) {
+            break;
+          }
+
+          case 'motor_start':
+          case 'more_motor_start_power':
+            setStatusLog(`${p.port} start motor`);
+            await sleep(200);
+            break;
+
+          case 'motor_stop':
+            setStatusLog(`${p.port} stop motor`);
+            await sleep(180);
+            break;
+
+          case 'set_movement_motors':
+            setStatusLog(`set movement motors to ${p.ports}`);
+            await sleep(160);
+            break;
+
+          case 'set_movement_speed':
+            moveSpeed = Number(p.speed);
+            setStatusLog(`set movement speed to ${moveSpeed}%`);
+            await sleep(160);
+            break;
+
+          case 'set_motor_rotation_distance':
+            setStatusLog(`set 1 motor rotation to ${p.distance} ${p.unit} moved`);
+            await sleep(160);
+            break;
+
+          case 'move_for_duration': {
+            const sign = p.direction === 'forward' ? 1 : -1;
+            const cmDist =
+              p.unit === 'cm'
+                ? p.value
+                : p.unit === 'rotations'
+                ? p.value * 17.5
+                : p.unit === 'degrees'
+                ? (p.value / 360) * 17.5
+                : p.value * 25;
+            const totalPx = cmDist * 1.1;
+            const steps = Math.max(8, Math.min(24, Math.round(Math.abs(totalPx) / 3)));
+            const stepDist = (totalPx / steps) * sign;
+            setStatusLog(`move ${p.direction === 'forward' ? '↑' : '↓'} for ${p.value} ${p.unit}`);
+
+            for (let i = 0; i < steps; i++) {
               if (stopFlagRef.current) break;
-              pose.x = Math.min(395, pose.x + 5.8);
-              const t = (pose.x - 70) / 340;
-              pose.y = 132 + Math.sin(t * Math.PI * 2) * 28;
-              pose.angle = Math.cos(t * Math.PI * 2) * 18;
+              const rad = (pose.angle * Math.PI) / 180;
+              pose.x = Math.max(30, Math.min(480, pose.x + Math.cos(rad) * stepDist));
+              pose.y = Math.max(30, Math.min(235, pose.y + Math.sin(rad) * stepDist));
               const live = computeLiveArenaSensors(pose.x, pose.y, pose.angle);
               pose.distanceCm = live.distanceCm;
               pose.trail = [...pose.trail, { x: pose.x, y: pose.y }];
@@ -1140,80 +1320,391 @@ export default function App() {
 
               setTelemetry((prev) => ({
                 ...prev,
-                gyroYaw: pose.angle,
-                colorSensor: live.detectedColor || {
-                  color: i % 2 === 0 ? 'BLACK' : 'WHITE',
-                  reflection: i % 2 === 0 ? 14 : 72
-                },
-                distanceSensor: { cm: pose.distanceCm }
+                distanceSensor: { cm: pose.distanceCm },
+                colorSensor: live.detectedColor || prev.colorSensor,
+                motors: {
+                  ...prev.motors,
+                  A: { angle: prev.motors.A.angle + sign * 15, speed: moveSpeed },
+                  B: { angle: prev.motors.B.angle + sign * 15, speed: moveSpeed }
+                }
               }));
-              await sleep(32);
+              await sleep(28);
             }
+            break;
           }
-          break;
-        }
 
-        case 'wait_until_sensor': {
-          setStatusLog(`wait until <${p.port} is ${p.condition} ${p.value} ${p.unit}?>`);
-          while (!stopFlagRef.current && pose.distanceCm > p.value) {
+          case 'move_with_steering': {
+            const turnDeg = Number(p.steering || 90);
+            const steps = 14;
+            const stepAng = turnDeg / steps;
+            setStatusLog(
+              `move [${p.steeringText || `steering ${turnDeg}`}] for ${p.value} ${p.unit}`
+            );
+            for (let i = 0; i < steps; i++) {
+              if (stopFlagRef.current) break;
+              pose.angle += stepAng;
+              setRobotPose({ ...pose });
+              setTelemetry((prev) => ({
+                ...prev,
+                gyroYaw: pose.angle
+              }));
+              await sleep(25);
+            }
+            break;
+          }
+
+          case 'start_moving': {
+            const sign = p.direction === 'backward' ? -1 : 1;
             const rad = (pose.angle * Math.PI) / 180;
-            pose.x = Math.max(30, Math.min(470, pose.x + Math.cos(rad) * 4.5));
-            pose.y = Math.max(30, Math.min(235, pose.y + Math.sin(rad) * 4.5));
+            pose.x = Math.max(30, Math.min(480, pose.x + Math.cos(rad) * 10 * sign));
+            pose.y = Math.max(30, Math.min(235, pose.y + Math.sin(rad) * 10 * sign));
+            const live = computeLiveArenaSensors(pose.x, pose.y, pose.angle);
+            pose.distanceCm = live.distanceCm;
+            pose.trail = [...pose.trail, { x: pose.x, y: pose.y }];
+            setRobotPose({ ...pose });
+            setStatusLog(`start moving ${p.direction === 'backward' ? '↓' : '↑'}`);
+            await sleep(90);
+            break;
+          }
+
+          case 'start_moving_steering': {
+            const steer = Number(p.steering ?? 30);
+            pose.angle += steer * 0.12;
+            const rad = (pose.angle * Math.PI) / 180;
+            pose.x = Math.max(30, Math.min(480, pose.x + Math.cos(rad) * 8));
+            pose.y = Math.max(30, Math.min(235, pose.y + Math.sin(rad) * 8));
             const live = computeLiveArenaSensors(pose.x, pose.y, pose.angle);
             pose.distanceCm = live.distanceCm;
             pose.trail = [...pose.trail, { x: pose.x, y: pose.y }];
             setRobotPose({ ...pose });
             setTelemetry((prev) => ({
               ...prev,
+              gyroYaw: pose.angle,
               distanceSensor: { cm: pose.distanceCm },
               colorSensor: live.detectedColor || prev.colorSensor
             }));
-            if (pose.x >= 460 || pose.distanceCm <= p.value) break;
-            await sleep(30);
+            setStatusLog(`start moving steering (${steer})`);
+            await sleep(60);
+            break;
           }
-          break;
-        }
 
-        case 'set_yaw_angle_to_0':
-          pose.angle = 0;
-          setRobotPose({ ...pose });
-          setTelemetry((prev) => ({ ...prev, gyroYaw: 0 }));
-          setStatusLog('set yaw angle to 0');
-          await sleep(180);
-          break;
+          case 'more_movement_tank':
+            setStatusLog(`start moving at ${p.leftSpeed}% / ${p.rightSpeed}%`);
+            await sleep(180);
+            break;
 
-        case 'more_motor_go_relative': {
-          const isClosing = Number(p.position) > 0;
-          pose.gripperClosed = isClosing;
-          if (isClosing && pose.x >= 130) {
-            pose.cargoGrabbed = true;
-            setStatusLog(
-              `${p.port} go to relative position ${p.position} -> Đã kẹp chặt kiện hàng 3D!`
+          case 'stop_moving':
+            setStatusLog('stop moving');
+            await sleep(180);
+            break;
+
+          case 'light_matrix_turn_on_for_seconds': {
+            const pat = LED_PATTERNS[p.pattern] || LED_PATTERNS.SMILE;
+            setLedMatrix(pat);
+            setStatusLog(`turn on [${p.pattern}] for ${p.seconds} seconds`);
+            await sleep((p.seconds || 1) * 1000);
+            break;
+          }
+
+          case 'light_matrix_turn_on': {
+            const pat = LED_PATTERNS[p.pattern] || LED_PATTERNS.HEART;
+            setLedMatrix(pat);
+            setStatusLog(`turn on [${p.pattern}]`);
+            await sleep(350);
+            break;
+          }
+
+          case 'light_matrix_set_pixel': {
+            const cIdx = Math.max(0, Math.min(4, (p.x || 1) - 1));
+            const rIdx = Math.max(0, Math.min(4, (p.y || 1) - 1));
+            setLedMatrix((prev) =>
+              prev.map((row, r) =>
+                row.map((val, c) => (r === rIdx && c === cIdx ? (p.brightness > 0 ? 9 : 0) : val))
+              )
             );
-          } else {
-            pose.cargoGrabbed = false;
-            setStatusLog(`${p.port} go to relative position ${p.position}`);
+            setStatusLog(`set pixel at (${p.x}, ${p.y}) to ${p.brightness}%`);
+            await sleep(240);
+            break;
           }
-          setRobotPose({ ...pose });
-          await sleep(380);
-          break;
+
+          case 'light_matrix_write':
+            setStatusLog(`write "${p.text}" on 5x5 Light Matrix`);
+            setLedMatrix(LED_PATTERNS.SMILE);
+            await sleep(500);
+            break;
+
+          case 'light_matrix_turn_off':
+            setLedMatrix(LED_PATTERNS.OFF);
+            setStatusLog('turn off pixels');
+            await sleep(200);
+            break;
+
+          case 'set_center_button_light':
+            setTelemetry((prev) => ({ ...prev, centerButtonColor: p.color }));
+            setStatusLog(`set Power Button light to ${p.color}`);
+            await sleep(200);
+            break;
+
+          case 'light_up_distance_sensor':
+            setStatusLog(`${p.port} light up Distance Sensor`);
+            await sleep(240);
+            break;
+
+          case 'play_beep_for_seconds':
+          case 'music_play_note':
+          case 'music_play_drum': {
+            const dur = p.seconds || p.beats || 0.3;
+            setTelemetry((prev) => ({ ...prev, hubSoundPlaying: true }));
+            playBeepSound(p.note || 60, dur);
+            setStatusLog(`play sound/note for ${dur}s`);
+            await sleep(dur * 1000);
+            setTelemetry((prev) => ({ ...prev, hubSoundPlaying: false }));
+            break;
+          }
+
+          case 'play_sound_until_done':
+            setTelemetry((prev) => ({ ...prev, hubSoundPlaying: true }));
+            playBeepSound(67, 0.4);
+            setStatusLog(`play sound [${p.soundName}] until done`);
+            await sleep(400);
+            setTelemetry((prev) => ({ ...prev, hubSoundPlaying: false }));
+            break;
+
+          case 'stop_all_sounds':
+            setTelemetry((prev) => ({ ...prev, hubSoundPlaying: false }));
+            setStatusLog('stop all sounds');
+            await sleep(160);
+            break;
+
+          case 'wait_seconds':
+            setStatusLog(`wait ${p.seconds} seconds`);
+            await sleep((p.seconds || 1) * 1000);
+            break;
+
+          // ================= KHỐI CHỮ C LỒNG NHAU: REPEAT, FOREVER, IF, IF-ELSE, REPEAT UNTIL =================
+          case 'repeat_loop_line_follow': {
+            const times = Math.max(1, Number(p.times ?? 10));
+            const hasCustomChildren = Array.isArray(block.children) && block.children.length > 0;
+            const isDefaultLineFollowDemo =
+              p.action === 'line_follow_port_D' &&
+              times >= 40 &&
+              (!hasCustomChildren ||
+                (block.children.length === 1 && block.children[0].id === 'b2_ifelse'));
+
+            if (hasCustomChildren && !isDefaultLineFollowDemo) {
+              const safeLoops = Math.min(50, times);
+              for (let loopIdx = 0; loopIdx < safeLoops; loopIdx++) {
+                if (stopFlagRef.current) break;
+                setStatusLog(`repeat (${loopIdx + 1}/${safeLoops})...`);
+                await executeBlockList(block.children);
+              }
+            } else {
+              setStatusLog(`repeat (${p.times}): Đang dò line đen bằng Cảm biến màu D...`);
+              const customPoly =
+                arenaConfig?.lines?.length > 0 && arenaConfig.lines[0].length > 1
+                  ? arenaConfig.lines.flat()
+                  : null;
+
+              if (customPoly && customPoly.length > 1) {
+                for (let i = 0; i < customPoly.length; i++) {
+                  if (stopFlagRef.current) break;
+                  const targetPt = customPoly[i];
+                  const dx = targetPt.x - pose.x;
+                  const dy = targetPt.y - pose.y;
+                  if (Math.hypot(dx, dy) > 2) {
+                    pose.angle = Math.round((Math.atan2(dy, dx) * 180) / Math.PI);
+                  }
+                  pose.x = targetPt.x;
+                  pose.y = targetPt.y;
+                  const live = computeLiveArenaSensors(pose.x, pose.y, pose.angle);
+                  pose.distanceCm = live.distanceCm;
+                  pose.trail = [...pose.trail, { x: pose.x, y: pose.y }];
+                  setRobotPose({ ...pose });
+                  setTelemetry((prev) => ({
+                    ...prev,
+                    gyroYaw: pose.angle,
+                    colorSensor: live.detectedColor || {
+                      color: i % 2 === 0 ? 'BLACK' : 'WHITE',
+                      reflection: i % 2 === 0 ? 14 : 68
+                    },
+                    distanceSensor: { cm: pose.distanceCm }
+                  }));
+                  await sleep(34);
+                }
+              } else {
+                const totalSteps = Math.min(45, Math.max(15, Math.round((p.times || 80) / 2.2)));
+                for (let i = 0; i < totalSteps; i++) {
+                  if (stopFlagRef.current) break;
+                  pose.x = Math.min(395, pose.x + 5.8);
+                  const t = (pose.x - 70) / 340;
+                  pose.y = 132 + Math.sin(t * Math.PI * 2) * 28;
+                  pose.angle = Math.cos(t * Math.PI * 2) * 18;
+                  const live = computeLiveArenaSensors(pose.x, pose.y, pose.angle);
+                  pose.distanceCm = live.distanceCm;
+                  pose.trail = [...pose.trail, { x: pose.x, y: pose.y }];
+                  setRobotPose({ ...pose });
+
+                  setTelemetry((prev) => ({
+                    ...prev,
+                    gyroYaw: pose.angle,
+                    colorSensor: live.detectedColor || {
+                      color: i % 2 === 0 ? 'BLACK' : 'WHITE',
+                      reflection: i % 2 === 0 ? 14 : 72
+                    },
+                    distanceSensor: { cm: pose.distanceCm }
+                  }));
+                  await sleep(32);
+                }
+              }
+            }
+            break;
+          }
+
+          case 'forever_loop': {
+            if (Array.isArray(block.children) && block.children.length > 0) {
+              for (let loopIdx = 0; loopIdx < 35; loopIdx++) {
+                if (stopFlagRef.current) break;
+                setStatusLog(`forever (vòng #${loopIdx + 1})...`);
+                await executeBlockList(block.children);
+              }
+            } else {
+              await sleep(300);
+            }
+            break;
+          }
+
+          case 'if_then_block': {
+            const condResult = evaluateBooleanCondition(block.conditionBlock, p, pose);
+            setStatusLog(
+              `if < > then -> Điều kiện = ${condResult ? 'ĐÚNG (True)' : 'SAI (False)'}`
+            );
+            await sleep(160);
+            if (condResult && Array.isArray(block.children) && block.children.length > 0) {
+              await executeBlockList(block.children);
+            }
+            break;
+          }
+
+          case 'if_else_block': {
+            const condResult = evaluateBooleanCondition(block.conditionBlock, p, pose);
+            setStatusLog(
+              `if < > then / else -> Điều kiện = ${
+                condResult ? 'ĐÚNG (Chạy nhánh then)' : 'SAI (Chạy nhánh else)'
+              }`
+            );
+            await sleep(160);
+            if (condResult) {
+              if (Array.isArray(block.children) && block.children.length > 0) {
+                await executeBlockList(block.children);
+              }
+            } else {
+              if (Array.isArray(block.elseChildren) && block.elseChildren.length > 0) {
+                await executeBlockList(block.elseChildren);
+              }
+            }
+            break;
+          }
+
+          case 'repeat_until_block': {
+            let guard = 0;
+            while (
+              !stopFlagRef.current &&
+              !evaluateBooleanCondition(block.conditionBlock, p, pose) &&
+              guard < 40
+            ) {
+              guard += 1;
+              setStatusLog(`repeat until < > (lần #${guard})...`);
+              if (Array.isArray(block.children) && block.children.length > 0) {
+                await executeBlockList(block.children);
+              } else {
+                const rad = (pose.angle * Math.PI) / 180;
+                pose.x = Math.max(30, Math.min(470, pose.x + Math.cos(rad) * 5));
+                pose.y = Math.max(30, Math.min(235, pose.y + Math.sin(rad) * 5));
+                const live = computeLiveArenaSensors(pose.x, pose.y, pose.angle);
+                pose.distanceCm = live.distanceCm;
+                pose.trail = [...pose.trail, { x: pose.x, y: pose.y }];
+                setRobotPose({ ...pose });
+                await sleep(35);
+              }
+            }
+            break;
+          }
+
+          case 'wait_until_sensor': {
+            setStatusLog(`wait until <${p.port || 'E'} ...>`);
+            let guard = 0;
+            while (
+              !stopFlagRef.current &&
+              !evaluateBooleanCondition(block.conditionBlock, p, pose) &&
+              guard < 85
+            ) {
+              guard += 1;
+              const rad = (pose.angle * Math.PI) / 180;
+              pose.x = Math.max(30, Math.min(470, pose.x + Math.cos(rad) * 4.5));
+              pose.y = Math.max(30, Math.min(235, pose.y + Math.sin(rad) * 4.5));
+              const live = computeLiveArenaSensors(pose.x, pose.y, pose.angle);
+              pose.distanceCm = live.distanceCm;
+              pose.trail = [...pose.trail, { x: pose.x, y: pose.y }];
+              setRobotPose({ ...pose });
+              setTelemetry((prev) => ({
+                ...prev,
+                distanceSensor: { cm: pose.distanceCm },
+                colorSensor: live.detectedColor || prev.colorSensor
+              }));
+              if (pose.x >= 460) break;
+              await sleep(30);
+            }
+            break;
+          }
+
+          case 'set_yaw_angle_to_0':
+            pose.angle = 0;
+            setRobotPose({ ...pose });
+            setTelemetry((prev) => ({ ...prev, gyroYaw: 0 }));
+            setStatusLog('set yaw angle to 0');
+            await sleep(160);
+            break;
+
+          case 'more_motor_go_relative': {
+            const isClosing = Number(p.position) > 0;
+            pose.gripperClosed = isClosing;
+            if (isClosing && pose.x >= 130) {
+              pose.cargoGrabbed = true;
+              setStatusLog(
+                `${p.port} go to relative position ${p.position} -> Đã kẹp chặt kiện hàng 3D!`
+              );
+            } else {
+              pose.cargoGrabbed = false;
+              setStatusLog(`${p.port} go to relative position ${p.position}`);
+            }
+            setRobotPose({ ...pose });
+            await sleep(350);
+            break;
+          }
+
+          case 'display_write':
+            setTelemetry((prev) => ({ ...prev, displayMessage: p.text }));
+            setStatusLog(`Display: "${p.text}"`);
+            await sleep((p.seconds || 1.5) * 1000);
+            break;
+
+          case 'stop_all_cap':
+            stopFlagRef.current = true;
+            setStatusLog(`stop [${p.target || 'all'}]`);
+            break;
+
+          default:
+            await sleep(180);
         }
-
-        case 'display_write':
-          setTelemetry((prev) => ({ ...prev, displayMessage: p.text }));
-          setStatusLog(`Display: "${p.text}"`);
-          await sleep((p.seconds || 1.5) * 1000);
-          break;
-
-        default:
-          await sleep(200);
       }
-    }
+    };
+
+    await executeBlockList(blocks);
 
     setActiveBlockId(null);
     setIsRunning(false);
 
-    if (!stopFlagRef.current) {
+    if (!stopFlagRef.current || blocks.some((b) => b.type === 'stop_all_cap')) {
       const reachedCustomGoal = checkCustomGoalReached(pose.x, pose.y);
       setMissionCompleted(true);
       setCompletedLessons((prev) => ({ ...prev, [currentLesson.id]: true }));
@@ -1261,6 +1752,8 @@ export default function App() {
       !dragState.hasMoved ||
       !dragState.overCanvas ||
       dragState.overTrash ||
+      dragState.targetBooleanBlockId ||
+      dragState.targetContainerId !== 'root' ||
       dragState.dropIndex !== idx
     ) {
       return null;
@@ -2076,15 +2569,20 @@ export default function App() {
                         <SpikeBlockItem
                           block={block}
                           index={index}
+                          parentId="root"
+                          parentBranch="root"
                           isPalette={false}
                           isCurrent={activeBlockId === block.id}
+                          activeBlockId={activeBlockId}
                           isDragging={
                             dragState &&
                             dragState.hasMoved &&
                             dragState.source === 'canvas' &&
                             dragState.block.id === block.id
                           }
+                          dragState={dragState}
                           onUpdateParam={handleUpdateBlockParam}
+                          onClearCondition={handleClearCondition}
                           onDuplicate={handleDuplicateBlock}
                           onRemove={handleRemoveBlock}
                           onHover={setHoveredBlockDesc}

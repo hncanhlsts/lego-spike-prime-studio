@@ -118,10 +118,16 @@ const COLOR_HEX_MAP = {
 export default function SpikeBlockItem({
   block,
   index,
+  parentId = 'root',
+  parentBranch = 'root',
   isPalette = false,
+  isEmbeddedBoolean = false,
   isCurrent = false,
+  activeBlockId = null,
   isDragging = false,
+  dragState = null,
   onUpdateParam,
+  onClearCondition,
   onDuplicate,
   onRemove,
   onHover,
@@ -145,11 +151,15 @@ export default function SpikeBlockItem({
       return;
     }
     if (e.button !== 0) return;
+    e.stopPropagation();
+    if (isEmbeddedBoolean) return;
     if (onPointerDragStart) {
       onPointerDragStart(e, {
         source: isPalette ? 'palette' : 'canvas',
         block,
-        index
+        index,
+        parentId,
+        parentBranch
       });
     }
   };
@@ -209,6 +219,147 @@ export default function SpikeBlockItem({
         <option value="YELLOW" className="bg-white text-slate-900">yellow</option>
         <option value="WHITE" className="bg-white text-slate-900">white</option>
       </select>
+    );
+  };
+
+  // Ô lục giác chứa khối điều kiện Boolean (< >)
+  const renderBooleanSlot = () => {
+    if (isPalette) {
+      return <span className={darkBooleanHoleClass} />;
+    }
+    const isBoolTarget =
+      dragState &&
+      dragState.hasMoved &&
+      dragState.targetBooleanBlockId === id;
+
+    if (block.conditionBlock) {
+      return (
+        <div
+          data-boolean-target-block-id={id}
+          className={`inline-flex items-center gap-1 rounded-full transition ${
+            isBoolTarget ? 'ring-2 ring-white scale-105' : ''
+          }`}
+        >
+          <SpikeBlockItem
+            block={block.conditionBlock}
+            isPalette={false}
+            isEmbeddedBoolean={true}
+            onUpdateParam={onUpdateParam}
+            onHover={onHover}
+          />
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onClearCondition && onClearCondition(id);
+            }}
+            title="Gỡ khối điều kiện lục giác"
+            className="w-4 h-4 rounded-full bg-black/35 hover:bg-rose-600 text-white text-[10px] font-bold flex items-center justify-center leading-none"
+          >
+            ×
+          </button>
+        </div>
+      );
+    }
+
+    return (
+      <div
+        data-boolean-target-block-id={id}
+        title="Kéo một khối lục giác (Sensors / Operators) thả vào ô điều kiện < > này"
+        className={`spike-boolean-slot min-w-[54px] h-[25px] px-2.5 inline-flex items-center justify-center text-[10px] font-bold transition ${
+          isBoolTarget
+            ? 'bg-yellow-300 text-slate-950 ring-2 ring-white scale-110 shadow-md'
+            : 'bg-black/30 text-white/75 hover:bg-black/40'
+        }`}
+      >
+        {isBoolTarget ? '↳ Thả < >' : '< >'}
+      </div>
+    );
+  };
+
+  // Khe chữ C (C-mouth) cho phép kéo thả lồng nhiều khối lệnh vào bên trong repeat / forever / if / else / repeat until
+  const renderNestedBranch = (branchKey = 'children', emptyLabel = '↳ Kéo thả khối lệnh vào đây') => {
+    if (isPalette) {
+      return (
+        <div className="ml-3 h-4 bg-[#f8f9fa] rounded-l-md border-l-4 border-amber-600/40" />
+      );
+    }
+
+    const list = Array.isArray(block[branchKey]) ? block[branchKey] : [];
+    const isTargetContainer =
+      dragState &&
+      dragState.hasMoved &&
+      dragState.overCanvas &&
+      !dragState.overTrash &&
+      !dragState.targetBooleanBlockId &&
+      dragState.targetContainerId === id &&
+      dragState.targetBranch === branchKey;
+
+    const renderNestedDropLine = (childIdx) => {
+      if (!isTargetContainer || dragState.dropIndex !== childIdx) return null;
+      const draggedDef = BLOCK_DEFINITIONS[dragState.block?.type];
+      return (
+        <div className="my-1 flex items-center animate-pulse">
+          <div className="h-3 w-48 rounded-md border-2 border-dashed border-amber-500 shadow-[0_0_10px_rgba(251,191,36,0.85)] flex items-center px-2 text-[10px] font-extrabold text-amber-900 bg-amber-100">
+            <span>↳ Ghép [{draggedDef?.nameEn}] vào đây</span>
+          </div>
+        </div>
+      );
+    };
+
+    return (
+      <div
+        data-c-container-id={id}
+        data-c-branch={branchKey}
+        className={`ml-3 pl-2.5 pr-2 py-1.5 min-h-[36px] min-w-[210px] rounded-l-lg border-l-4 transition-colors ${
+          isTargetContainer
+            ? 'bg-amber-50/95 border-amber-400 ring-2 ring-amber-300'
+            : 'bg-[#f3f4f6]/95 border-amber-600/60'
+        }`}
+      >
+        {list.length === 0 ? (
+          <div className="min-h-[24px] flex items-center">
+            {isTargetContainer ? (
+              renderNestedDropLine(0)
+            ) : (
+              <span className="text-[10px] font-bold text-slate-400 italic select-none pointer-events-none">
+                {emptyLabel}
+              </span>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-0.5">
+            {list.map((childBlock, childIdx) => (
+              <React.Fragment key={childBlock.id}>
+                {renderNestedDropLine(childIdx)}
+                <SpikeBlockItem
+                  block={childBlock}
+                  index={childIdx}
+                  parentId={id}
+                  parentBranch={branchKey}
+                  isPalette={false}
+                  isCurrent={activeBlockId === childBlock.id}
+                  activeBlockId={activeBlockId}
+                  isDragging={
+                    dragState &&
+                    dragState.hasMoved &&
+                    dragState.source === 'canvas' &&
+                    dragState.block.id === childBlock.id
+                  }
+                  dragState={dragState}
+                  onUpdateParam={onUpdateParam}
+                  onClearCondition={onClearCondition}
+                  onDuplicate={onDuplicate}
+                  onRemove={onRemove}
+                  onHover={onHover}
+                  onPointerDragStart={onPointerDragStart}
+                />
+              </React.Fragment>
+            ))}
+            {renderNestedDropLine(list.length)}
+          </div>
+        )}
+      </div>
     );
   };
 
@@ -1060,7 +1211,7 @@ export default function SpikeBlockItem({
         return (
           <div className="flex items-center gap-1.5 font-semibold text-white text-[12px] whitespace-nowrap">
             <span>when</span>
-            <span className={darkBooleanHoleClass} />
+            {renderBooleanSlot()}
           </div>
         );
 
@@ -1129,19 +1280,7 @@ export default function SpikeBlockItem({
                 className={whiteOvalInputClass}
               />
             </div>
-            {!isPalette ? (
-              <div className="ml-3 pl-2.5 py-1.5 bg-white/90 rounded-l-md border-l-4 border-amber-500">
-                <div className="bg-[#EA3396] px-2.5 py-1 rounded text-white font-bold text-[11px] inline-flex items-center gap-1.5 shadow-sm">
-                  <SpikeWheelBadge />
-                  <span>start moving</span>
-                  <span className="bg-[#0EB8D6] px-2 py-0.5 rounded-full text-[10px] border border-white/40">
-                    D reflected light - 50
-                  </span>
-                </div>
-              </div>
-            ) : (
-              <div className="ml-3 h-4 bg-[#f8f9fa] rounded-l-md border-l-4 border-amber-600/40" />
-            )}
+            {renderNestedBranch('children', '↳ Kéo thả khối lệnh cần lặp vào đây')}
           </div>
         );
 
@@ -1151,7 +1290,7 @@ export default function SpikeBlockItem({
             <div className="flex items-center gap-1.5 font-semibold text-white text-[12px] whitespace-nowrap">
               <span>forever</span>
             </div>
-            <div className="ml-3 h-4 bg-[#f8f9fa] rounded-l-md border-l-4 border-amber-600/40" />
+            {renderNestedBranch('children', '↳ Kéo thả khối lệnh lặp mãi mãi vào đây')}
           </div>
         );
 
@@ -1160,10 +1299,10 @@ export default function SpikeBlockItem({
           <div className="flex flex-col gap-1 w-full">
             <div className="flex items-center gap-1.5 font-semibold text-white text-[12px] whitespace-nowrap">
               <span>if</span>
-              <span className={darkBooleanHoleClass} />
+              {renderBooleanSlot()}
               <span>then</span>
             </div>
-            <div className="ml-3 h-4 bg-[#f8f9fa] rounded-l-md border-l-4 border-amber-600/40" />
+            {renderNestedBranch('children', '↳ Kéo khối lệnh thực hiện khi Đúng (then) vào đây')}
           </div>
         );
 
@@ -1172,12 +1311,12 @@ export default function SpikeBlockItem({
           <div className="flex flex-col gap-1 w-full">
             <div className="flex items-center gap-1.5 font-semibold text-white text-[12px] whitespace-nowrap">
               <span>if</span>
-              <span className={darkBooleanHoleClass} />
+              {renderBooleanSlot()}
               <span>then</span>
             </div>
-            <div className="ml-3 h-3.5 bg-[#f8f9fa] rounded-l-md border-l-4 border-amber-600/40" />
-            <div className="text-[12px] font-semibold text-white">else</div>
-            <div className="ml-3 h-3.5 bg-[#f8f9fa] rounded-l-md border-l-4 border-amber-600/40" />
+            {renderNestedBranch('children', '↳ Nhánh Đúng (then): Kéo khối lệnh vào đây')}
+            <div className="text-[12px] font-semibold text-white py-0.5">else</div>
+            {renderNestedBranch('elseChildren', '↳ Nhánh Sai (else): Kéo khối lệnh vào đây')}
           </div>
         );
 
@@ -1185,21 +1324,7 @@ export default function SpikeBlockItem({
         return (
           <div className="flex items-center gap-1.5 font-semibold text-white text-[12px] whitespace-nowrap">
             <span>wait until</span>
-            {isPalette ? (
-              <span className={darkBooleanHoleClass} />
-            ) : (
-              <div className="spike-boolean-slot bg-[#0EB8D6] px-3 py-0.5 flex items-center gap-1 border border-white/30">
-                <span>{params.port || 'E'}</span>
-                <span>is closer than</span>
-                <input
-                  type="number"
-                  value={params.value ?? 25}
-                  onChange={(e) => update('value', Number(e.target.value))}
-                  className="spike-oval-input bg-white text-slate-900 font-bold w-9 rounded-full text-center text-[10px]"
-                />
-                <span>{params.unit || 'cm'} ?</span>
-              </div>
-            )}
+            {renderBooleanSlot()}
           </div>
         );
 
@@ -1208,9 +1333,9 @@ export default function SpikeBlockItem({
           <div className="flex flex-col gap-1 w-full">
             <div className="flex items-center gap-1.5 font-semibold text-white text-[12px] whitespace-nowrap">
               <span>repeat until</span>
-              <span className={darkBooleanHoleClass} />
+              {renderBooleanSlot()}
             </div>
-            <div className="ml-3 h-4 bg-[#f8f9fa] rounded-l-md border-l-4 border-amber-600/40" />
+            {renderNestedBranch('children', '↳ Kéo thả khối lệnh lặp cho đến khi < > vào đây')}
           </div>
         );
 
@@ -2388,29 +2513,36 @@ export default function SpikeBlockItem({
 
   return (
     <div
-      data-canvas-block-index={!isPalette ? index : undefined}
+      data-block-id={!isPalette && !isEmbeddedBoolean ? id : undefined}
+      data-parent-id={!isPalette && !isEmbeddedBoolean ? parentId : undefined}
+      data-parent-branch={!isPalette && !isEmbeddedBoolean ? parentBranch : undefined}
+      data-canvas-block-index={!isPalette && !isEmbeddedBoolean ? index : undefined}
       onMouseEnter={() => onHover && onHover(def)}
       onPointerDown={handlePointerDown}
-      className={`${shapeClass} px-3.5 py-1.5 text-white select-none transition-transform border border-black/20 w-fit max-w-full group ${
+      className={`${shapeClass} ${
+        isEmbeddedBoolean ? 'px-2.5 py-0.5' : 'px-3.5 py-1.5'
+      } text-white select-none transition-transform border border-black/20 w-fit max-w-full group ${
         isPalette
           ? 'cursor-grab active:cursor-grabbing hover:brightness-105'
+          : isEmbeddedBoolean
+          ? 'cursor-default shadow-sm'
           : 'cursor-grab active:cursor-grabbing shadow-md'
       } ${isCurrent ? 'ring-4 ring-yellow-300 z-10 brightness-110' : ''} ${
         isDragging ? 'opacity-35 scale-95 ring-2 ring-dashed ring-white' : ''
       }`}
       style={{ backgroundColor: def.color, touchAction: 'none' }}
     >
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex items-start justify-between gap-2">
         {renderContent()}
 
         {/* Nút Nhân bản (Duplicate) & Xóa nhanh khi di chuột lên khối trong Canvas */}
-        {!isPalette && (
-          <div className="flex items-center gap-0.5 ml-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+        {!isPalette && !isEmbeddedBoolean && (
+          <div className="flex items-center gap-0.5 ml-1.5 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                onDuplicate && onDuplicate(index);
+                onDuplicate && onDuplicate(id);
               }}
               title="Nhân bản khối lệnh (Duplicate)"
               className="p-1 rounded hover:bg-black/25"
