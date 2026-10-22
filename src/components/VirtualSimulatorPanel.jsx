@@ -26,6 +26,7 @@ import {
   Camera
 } from 'lucide-react';
 import * as THREE from 'three';
+import { PX_PER_CM, SENSOR_OFFSET_PX, ROBOT_RADIUS_PX } from '../utils/simPhysics';
 
 const PATCH_COLORS = [
   { name: 'BLACK', label: 'Đen (0)', hex: '#0f172a', reflection: 12 },
@@ -1139,47 +1140,72 @@ export default function VirtualSimulatorPanel({
       ctx.setLineDash([]);
     }
 
-    // 5. Vẽ Robot LEGO SPIKE Prime với nhãn cổng A, B, D, E rõ ràng cho Học sinh
+    // 5. Vẽ Robot LEGO SPIKE Prime theo đúng tỉ lệ thực tế (Driving Base chuẩn tỉ lệ)
     ctx.save();
     ctx.translate(robotPose.x, robotPose.y);
     ctx.rotate((robotPose.angle * Math.PI) / 180);
 
-    // Chùm sóng siêu âm Distance Sensor (Port E)
-    ctx.fillStyle = 'rgba(14, 184, 214, 0.18)';
+    // Chùm sóng siêu âm Distance Sensor (Port E) - độ dài khớp chuẩn xác với cự ly đo được (PX_PER_CM = 1.1)
+    const sensorOffset = SENSOR_OFFSET_PX;
+    const coneDist = Math.min((robotPose.distanceCm || 95) * PX_PER_CM, 160);
+    const coneSpread = Math.min(22, Math.max(6, coneDist * 0.28));
+
+    // Đổi màu chùm tia: nếu dưới 25cm (gần vật cản) đổi sang đỏ cảnh báo, ngược lại là xanh cyan
+    ctx.fillStyle =
+      (robotPose.distanceCm || 95) <= 25 ? 'rgba(239, 68, 68, 0.25)' : 'rgba(14, 184, 214, 0.18)';
     ctx.beginPath();
-    ctx.moveTo(22, 0);
-    ctx.lineTo(22 + Math.min(robotPose.distanceCm * 1.4, 150), -26);
-    ctx.lineTo(22 + Math.min(robotPose.distanceCm * 1.4, 150), 26);
+    ctx.moveTo(sensorOffset, 0);
+    ctx.lineTo(sensorOffset + coneDist, -coneSpread);
+    ctx.lineTo(sensorOffset + coneDist, coneSpread);
     ctx.closePath();
     ctx.fill();
 
-    // 2 Bánh xe xanh (Port A Trái, Port B Phải)
+    // 2 Bánh xe xanh Technic (Port A Trái - trên, Port B Phải - dưới)
     ctx.fillStyle = '#0090FF';
-    ctx.fillRect(-16, -25, 32, 8);
-    ctx.fillRect(-16, 17, 32, 8);
+    ctx.fillRect(-12, -18, 24, 6);
+    ctx.fillRect(-12, 12, 24, 6);
 
-    // Khung Magenta Driving Base
+    // Khung Magenta Driving Base chuẩn tỉ lệ
     ctx.fillStyle = '#EA3396';
-    ctx.fillRect(-20, -17, 40, 34);
+    ctx.fillRect(-14, -12, 28, 24);
 
     // Thân Hub vàng ở giữa
     ctx.fillStyle = '#FFD500';
-    ctx.fillRect(-14, -12, 28, 24);
+    ctx.fillRect(-9, -9, 18, 18);
 
-    // Nhãn cổng A và B ngay trên 2 bánh xe
+    // Nhãn cổng A và B trên 2 bánh xe
     ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 8px Inter';
-    ctx.fillText('A', -3, -19);
-    ctx.fillText('B', -3, 24);
+    ctx.font = 'bold 7.5px Inter';
+    ctx.fillText('A', -2.5, -13.5);
+    ctx.fillText('B', -2.5, 17);
 
     // Mắt Cảm biến màu (Port D) & Khoảng cách (Port E) ở mũi Robot
-    ctx.fillStyle = '#0EB8D6';
+    // Tự động đổi màu nền theo đúng màu sàn thực tế đang đọc được!
+    const curDetectedColor = telemetry?.colorSensor?.color || 'WHITE';
+    const colorDotHex =
+      curDetectedColor === 'BLACK'
+        ? '#0f172a'
+        : curDetectedColor === 'RED'
+        ? '#ef4444'
+        : curDetectedColor === 'GREEN'
+        ? '#22c55e'
+        : curDetectedColor === 'YELLOW'
+        ? '#eab308'
+        : curDetectedColor === 'BLUE'
+        ? '#3b82f6'
+        : '#ffffff';
+
+    ctx.fillStyle = colorDotHex;
+    ctx.strokeStyle = '#0EB8D6';
+    ctx.lineWidth = 1.8;
     ctx.beginPath();
-    ctx.arc(21, 0, 5.5, 0, Math.PI * 2);
+    ctx.arc(sensorOffset, 0, 4.5, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = '#0f172a';
-    ctx.font = 'bold 7px Inter';
-    ctx.fillText('D/E', 15, 2.5);
+    ctx.stroke();
+
+    ctx.fillStyle = curDetectedColor === 'BLACK' ? '#ffffff' : '#0f172a';
+    ctx.font = 'bold 6.5px Inter';
+    ctx.fillText('D', sensorOffset - 2.5, 2);
 
     ctx.restore();
 

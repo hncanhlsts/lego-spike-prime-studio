@@ -7,8 +7,8 @@
 export const ARENA_W = 520;
 export const ARENA_H = 265;
 export const PX_PER_CM = 1.1; // 1 cm trên sa bàn = 1.1 px (đồng bộ với khối move ... cm)
-export const SENSOR_OFFSET_PX = 18; // Cảm biến D/E gắn ở mũi robot, cách tâm 18 px
-export const ROBOT_RADIUS_PX = 12; // Bán kính va chạm (tính từ tâm robot)
+export const SENSOR_OFFSET_PX = 15; // Cảm biến D/E gắn ở mũi robot, cách tâm 15 px (chuẩn tỉ lệ)
+export const ROBOT_RADIUS_PX = 13; // Bán kính va chạm chuẩn của Driving Base (tính từ tâm robot)
 
 // Vật cản & tường được VẼ SẴN trong từng sa bàn mẫu (đồng bộ với VirtualSimulatorPanel)
 export const PRESET_SOLIDS = {
