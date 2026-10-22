@@ -54,7 +54,7 @@ flowchart TD
 ### Chi tiết các khu vực:
 * **Thanh Dự Án Trên Cùng:** 
   * Nút `Home`: Về bài học số 1.
-  * Hộp chọn bài học: Phân theo 4 nhóm lộ trình (Nền tảng $\to$ Ứng dụng $\to$ Luyện thi FLL/WRO $\to$ Sáng tạo).
+  * Hộp chọn bài học: Phân theo 4 nhóm lộ trình (Nền tảng → Ứng dụng → Luyện thi FLL/WRO → Sáng tạo).
   * Bộ nút điều khiển chạy: `▶ Bắt đầu`, `⏹ Dừng lại`, `🐾 Từng bước` (Bước tiếp), tốc độ `0.5x | 1x | 2x`.
   * Hỗ trợ học tập: `Code khởi đầu`, `Gợi ý (1/3)`, `Xem Lời Giải Mẫu` (khóa bằng mã PIN đối với học sinh).
   * Thanh hiển thị Đề bài & Tiêu chí hoàn thành (tự động kiểm tra đạt/chưa đạt).
@@ -114,9 +114,9 @@ sequenceDiagram
 ```
 
 ### Các thông số hiển thị trên thẻ HUD của thước:
-* 📏 **Khoảng cách:** Đơn vị **cm** và **pixel** thực tế ($1\text{ cm} = 1.1\text{ px}$).
-* 🔄 **Vòng quay bánh xe (rotations):** Tính chuẩn xác theo bánh xe LEGO SPIKE Prime đường kính $5.6\text{ cm}$ (Chu vi $1\text{ vòng} \approx 17.59\text{ cm}$).
-* 🧭 **Góc quay robot ($\Delta\theta$):** Tính toán độ lệch giữa hướng nhìn hiện tại của robot và điểm đích:
+* 📏 **Khoảng cách:** Đơn vị **cm** và **pixel** thực tế (1 cm = 1.1 px).
+* 🔄 **Vòng quay bánh xe (rotations):** Tính chuẩn xác theo bánh xe LEGO SPIKE Prime đường kính 5.6 cm (Chu vi 1 vòng ≈ 17.59 cm).
+* 🧭 **Góc quay robot (Δθ):** Tính toán độ lệch giữa hướng nhìn hiện tại của robot và điểm đích:
   * `Rẽ phải +X°`: Góc quay thuận chiều kim đồng hồ.
   * `Rẽ trái -X°`: Góc quay ngược chiều kim đồng hồ.
   * `Đi thẳng (0°)`: Mục tiêu nằm thẳng trục mũi robot.
@@ -134,7 +134,7 @@ Trên thanh Tab sa bàn (góc trên bên phải), hệ thống cung cấp 3 ch�
 | Chế độ | Tỉ lệ diện tích | Đặc điểm & Ứng dụng |
 | :--- | :---: | :--- |
 | **`⚖️ Cân Bằng`** | **52%** Sa bàn / 48% Code | Tỉ lệ chuẩn mặc định, cân đối giữa vùng ghép khối lệnh và sa bàn quan sát. |
-| **`⛶ Mở Rộng`** | **68%** Sa bàn / 32% Code | Kéo dài chiều ngang sa bàn, sa bàn tự động phóng to theo tỉ lệ $520 : 265$. Thích hợp khi lập trình các lộ trình dài, đường cong zíc-zắc phức tạp. |
+| **`⛶ Mở Rộng`** | **68%** Sa bàn / 32% Code | Kéo dài chiều ngang sa bàn, sa bàn tự động phóng to theo tỉ lệ 520 : 265. Thích hợp khi lập trình các lộ trình dài, đường cong zíc-zắc phức tạp. |
 | **`🖥 Toàn Cảnh`** | **82%** Sa bàn / 18% Code | Khung sa bàn cực đại. Thích hợp cho các bài thi đua Sa bàn FLL Challenge, WRO Smart City, Đường đua F1. |
 
 > [!TIP]
@@ -152,7 +152,7 @@ Khi robot chạy sai hướng hoặc không đọc được màu, chế độ G�
    * Khối lệnh đang chạy sẽ phát sáng viền vàng nhấp nháy trên canvas.
    * Vệt đường đi (trail) màu hồng neon của robot vẽ rõ ràng trên sa bàn.
    * Mũi cảm biến màu (Port D) tự động đổi màu theo màu sàn thực tế dưới mũi xe.
-   * Chùm sóng siêu âm (Port E) đổi sang màu đỏ cảnh báo nếu khoảng cách tới vật cản $\le 25\text{ cm}$.
+   * Chùm sóng siêu âm (Port E) đổi sang màu đỏ cảnh báo nếu khoảng cách tới vật cản ≤ 25 cm.
 4. **Bộ chọn tốc độ mô phỏng:** Chọn `0.5x` (chậm quan sát kỹ), `1x` (tốc độ thực tế), hoặc `2x` (chạy nhanh kiểm tra toàn bộ lộ trình).
 
 ---
@@ -165,7 +165,7 @@ Nhấn nút **`🛠 Thiết Kế Sa Bàn`** trên thanh công cụ để kích h
 [✏️ Vẽ Line Tự Do]  [📏 Đoạn Thẳng]  [🎯 Ô Đích]  [🛑 Vật Cản]  [🧱 Tường Ngang/Dọc]  [🎨 Dải Màu]  [📦 Kiện Hàng]  [📍 Đặt Robot]  [🧲 Hít Lưới]  [🧹 Tẩy]
 ```
 
-* **Vẽ đường Line đen/màu:** Chọn công cụ `Vẽ Line` hoặc `Đoạn Thẳng`, giữ chuột trái và kéo rê trực tiếp trên mặt sàn để tạo đường line dò màu. Có thể tùy chỉnh độ dày ($8\text{px} \to 28\text{px}$) và màu sắc (Đen, Đỏ, Vàng, Xanh lá, Xanh dương).
+* **Vẽ đường Line đen/màu:** Chọn công cụ `Vẽ Line` hoặc `Đoạn Thẳng`, giữ chuột trái và kéo rê trực tiếp trên mặt sàn để tạo đường line dò màu. Có thể tùy chỉnh độ dày (8px → 28px) và màu sắc (Đen, Đỏ, Vàng, Xanh lá, Xanh dương).
 * **Kéo thả di chuyển vật thể (`🖐 Di chuyển`):** Cho phép bấm chọn và kéo thả bất kỳ vật thể nào (vật cản, ô đích, vị trí xuất phát robot) sang vị trí mới.
 * **Tải ảnh sa bàn tùy chỉnh (`🖼 Tải Ảnh Nền`):** Học sinh hoặc giáo viên có thể tải lên ảnh chụp sa bàn FLL/WRO thật từ máy tính làm nền sa bàn mô phỏng.
 * **Xóa vật thể:** Dùng công cụ `Cục Tẩy` hoặc bấm `Xóa hết` để làm lại từ đầu.
@@ -195,10 +195,10 @@ Bấm nút **`3D`** trên thanh công cụ để chuyển sang không gian 3D t�
 ### Tab 2: Hub & Cảm Biến
 * **Ma trận đèn LED 5x5:** Nhấp chuột trực tiếp vào từng ô vuông để bật/tắt đèn vàng. Khối lệnh `light_matrix_image` trong chương trình sẽ hiển thị đồng bộ lên ma trận này.
 * **Giám sát cảm biến thời gian thực:**
-  * Động cơ A & B (Bánh xe), Động cơ C (Cơ cấu tay gắp/nâng): Đo góc xoay $0^\circ \to 360^\circ$.
-  * Cảm biến màu D: Tỉ lệ phản xạ ánh sáng ($0 \to 100\%$) và tên màu đọc được.
-  * Cảm biến khoảng cách siêu âm E: Khoảng cách từ $4\text{ cm} \to 200\text{ cm}$.
-  * Cảm biến lực F: Lực nhấn từ $0\text{ N} \to 10\text{ N}$.
+  * Động cơ A & B (Bánh xe), Động cơ C (Cơ cấu tay gắp/nâng): Đo góc xoay 0° → 360°.
+  * Cảm biến màu D: Tỉ lệ phản xạ ánh sáng (0 → 100%) và tên màu đọc được.
+  * Cảm biến khoảng cách siêu âm E: Khoảng cách từ 4 cm → 200 cm.
+  * Cảm biến lực F: Lực nhấn từ 0 N → 10 N.
   * Con quay hồi chuyển (Gyro Yaw): Góc xoay thân xe thời gian thực.
 
 ### Tab 3: Python Code
@@ -218,7 +218,7 @@ Bấm nút **`3D`** trên thanh công cụ để chuyển sang không gian 3D t�
 ### 2. Quản Lý Nhiệm Vụ (Mission Studio)
 Bấm nút **`⚙️ Quản Lý Nhiệm Vụ`** trên thanh trên cùng để mở bảng quản trị:
 * **Tạo nhiệm vụ mới (`+ Thêm Nhiệm Vụ Mới`):** Đặt tên bài học, phân loại độ khó (Nền tảng, Ứng dụng, Luyện thi, Tự do), viết nội dung đề bài và gợi ý.
-* **Thiết lập tiêu chí chấm điểm tự động:** Cài đặt vị trí tọa độ vùng đích ($X, Y$), thời gian tối đa, hoặc số lượng kiện hàng cần thu gom.
+* **Thiết lập tiêu chí chấm điểm tự động:** Cài đặt vị trí tọa độ vùng đích (X, Y), thời gian tối đa, hoặc số lượng kiện hàng cần thu gom.
 * **Lưu cấu hình sa bàn hiện tại:** Nạp toàn bộ đường line, tường chắn, kiện hàng vừa thiết kế vào dữ liệu bài học.
 * **Xuất / Nhập file JSON:**
   * `Xuất JSON`: Tải toàn bộ ngân hàng câu hỏi & sa bàn về máy tính thành file `.json` để lưu trữ hoặc chia sẻ cho các trường/lớp khác.
