@@ -206,9 +206,12 @@ export default function VirtualSimulatorPanel({
   onManualNudgeArm,
   arenaConfig,
   onUpdateArenaConfig,
-  onSetStartPose
+  onSetStartPose,
+  onFloorCanvasReady,
+  onCargoStatusChange
 }) {
   const canvas2DRef = useRef(null);
+  const floorCanvasRef = useRef(null);
   const mount3DRef = useRef(null);
   const sceneObjectsRef = useRef(null);
   const bgImageCacheRef = useRef({ src: '', img: null });
@@ -230,6 +233,20 @@ export default function VirtualSimulatorPanel({
 
   // Chế độ tương tác chuột trong 3D: 'orbit' (Xoay Camera) | 'drag_cargo' (Kéo thả Kiện hàng 3D)
   const [interaction3DMode, setInteraction3DMode] = useState('drag_cargo');
+  const [showArenaGallery, setShowArenaGallery] = useState(false);
+
+  // Chọn bất kỳ sa bàn nào (2D hoặc 3D) — tự động chuyển chế độ mô phỏng tương ứng
+  const handleSelectAnyArena = (value) => {
+    if (String(value).startsWith('3d_')) {
+      if (setScene3DType) setScene3DType(value);
+      setIsEditingArena(false);
+      setSimMode('3D');
+    } else {
+      setMapType(value);
+      setSimMode('2D');
+    }
+    setShowArenaGallery(false);
+  };
   const interaction3DModeRef = useRef('drag_cargo');
   useEffect(() => {
     interaction3DModeRef.current = interaction3DMode;
@@ -1057,6 +1074,22 @@ export default function VirtualSimulatorPanel({
       ctx.fillText('BOX', cargo.x + 4, cargo.y + 16);
     });
 
+    // Chụp lại bản đồ mặt sàn 2D (trước khi vẽ vết bánh xe & thân Robot) để cảm biến màu đọc chính xác 100% pixel mặt sàn
+    if (!floorCanvasRef.current && typeof document !== 'undefined') {
+      const off = document.createElement('canvas');
+      off.width = W;
+      off.height = H;
+      floorCanvasRef.current = off;
+    }
+    if (floorCanvasRef.current) {
+      const fCtx = floorCanvasRef.current.getContext('2d', { willReadFrequently: true });
+      fCtx.clearRect(0, 0, W, H);
+      fCtx.drawImage(canvas, 0, 0);
+      if (onFloorCanvasReady) {
+        onFloorCanvasReady(floorCanvasRef.current);
+      }
+    }
+
     // 4. Đường vết di chuyển của Robot
     if (robotPose.trail && robotPose.trail.length > 1) {
       ctx.strokeStyle = 'rgba(234, 51, 150, 0.55)';
@@ -1648,7 +1681,7 @@ export default function VirtualSimulatorPanel({
     const isHoldingActive =
       robotPose.gripperClosed ||
       robotPose.cargoGrabbed ||
-      (scene3DType === '3d_forklift_pallet' && robotPose.armAngle > 25);
+      (scene3DType === '3d_forklift_pallet' && robotPose.armAngle > 45);
 
     if (isHoldingActive) {
       if (!state3D.grabbedCargo) {
@@ -1689,6 +1722,25 @@ export default function VirtualSimulatorPanel({
       state3D.grabbedCargo = null;
     }
 
+    // Kiểm tra số lượng kiện hàng 3D đã đặt thành công vào vùng đích (DropZone)
+    if (onCargoStatusChange) {
+      let inZoneCount = 0;
+      cargoItems.forEach((cube) => {
+        const insideAny = dropZones.some(
+          (dz) =>
+            Math.abs(cube.position.x - dz.x) <= dz.w / 2 + 0.35 &&
+            Math.abs(cube.position.z - dz.z) <= dz.d / 2 + 0.35
+        );
+        if (insideAny) inZoneCount += 1;
+      });
+      onCargoStatusChange({
+        inZoneCount,
+        totalCargo: cargoItems.length,
+        isHolding: Boolean(state3D.grabbedCargo),
+        bridgeLowered: Boolean(drawbridgeLeaf && drawbridgeLeaf.rotation.z <= 0.05)
+      });
+    }
+
     // Nếu người dùng bấm Reset về điểm xuất phát ban đầu, khôi phục vị trí các kiện hàng 3D
     if (
       robotPose.trail &&
@@ -1711,31 +1763,46 @@ export default function VirtualSimulatorPanel({
       {/* HEADER KHU VỰC 3: THANH CÔNG CỤ SA BÀN CỐ ĐỊNH 1 DÒNG (H-11), KHÔNG BAO GIỜ BỊ ÉP DỌC */}
       <div className="h-11 shrink-0 flex items-center justify-between gap-1.5 px-2.5 bg-slate-950 border-b border-slate-800 whitespace-nowrap overflow-x-auto">
         <div className="flex items-center gap-1.5 shrink-0">
-          {simMode === '2D' ? (
-            <select
-              value={mapType}
-              onChange={(e) => setMapType(e.target.value)}
-              className="bg-slate-900 text-slate-100 text-[11px] font-bold h-7 px-2 rounded-lg border border-slate-700 focus:outline-none cursor-pointer shrink-0 whitespace-nowrap max-w-[240px]"
-            >
+          {/* NÚT MỞ THƯ VIỆN 18 SA BÀN (12 SA BÀN 2D + 6 SA BÀN 3D) */}
+          <button
+            type="button"
+            onClick={() => setShowArenaGallery((v) => !v)}
+            className={`inline-flex items-center gap-1 h-7 px-2.5 rounded-lg text-[11px] font-extrabold border transition shrink-0 whitespace-nowrap ${
+              showArenaGallery
+                ? 'bg-fuchsia-500 text-white border-fuchsia-300'
+                : 'bg-fuchsia-600/20 text-fuchsia-200 border-fuchsia-500/50 hover:bg-fuchsia-600/40'
+            }`}
+            title="Mở Thư viện 18 Sa bàn: 12 sa bàn 2D và 6 sa bàn 3D"
+          >
+            <Grid className="w-3.5 h-3.5 shrink-0" />
+            <span>Thư viện Sa bàn (2D: {MAP_2D_OPTIONS.length} | 3D: {SCENE_3D_OPTIONS.length})</span>
+          </button>
+
+          {/* MENU CHUNG: CHỌN 1 SA BÀN 2D HOẶC 3D, TỰ ĐỘNG CHUYỂN CHẾ ĐỘ */}
+          <select
+            value={simMode === '3D' ? scene3DType : mapType}
+            onChange={(e) => handleSelectAnyArena(e.target.value)}
+            className={`text-[11px] font-bold h-7 px-2 rounded-lg border focus:outline-none cursor-pointer shrink-0 whitespace-nowrap max-w-[220px] ${
+              simMode === '3D'
+                ? 'bg-orange-500/20 text-orange-200 border-orange-500/50'
+                : 'bg-slate-900 text-slate-100 border-slate-700'
+            }`}
+          >
+            <optgroup label={`🗺 SA BÀN 2D (${MAP_2D_OPTIONS.length})`} className="bg-slate-900 text-emerald-300">
               {MAP_2D_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
+                <option key={opt.value} value={opt.value} className="bg-slate-900 text-slate-100">
                   {opt.label}
                 </option>
               ))}
-            </select>
-          ) : (
-            <select
-              value={scene3DType}
-              onChange={(e) => setScene3DType && setScene3DType(e.target.value)}
-              className="bg-orange-500/20 text-orange-300 border border-orange-500/40 h-7 px-2 rounded-lg text-[11px] font-bold focus:outline-none cursor-pointer shrink-0 whitespace-nowrap max-w-[285px]"
-            >
+            </optgroup>
+            <optgroup label={`🧊 SA BÀN 3D — KÉO THẢ, GẮP NÂNG (${SCENE_3D_OPTIONS.length})`} className="bg-slate-900 text-orange-300">
               {SCENE_3D_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value} className="bg-slate-900 text-slate-100">
                   {opt.label}
                 </option>
               ))}
-            </select>
-          )}
+            </optgroup>
+          </select>
 
           {simMode === '2D' && (
             <button
@@ -2142,6 +2209,76 @@ export default function VirtualSimulatorPanel({
           />
         ) : (
           <div ref={mount3DRef} className="w-full h-full cursor-grab active:cursor-grabbing" />
+        )}
+
+        {/* LỚP PHỦ THƯ VIỆN 18 SA BÀN (DẠNG THẺ, NỔI BÊN TRONG KHUNG — KHÔNG LÀM NHẢY KÍCH THƯỚC) */}
+        {showArenaGallery && (
+          <div className="absolute inset-0 z-30 bg-slate-950/95 backdrop-blur p-3 overflow-y-auto">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-extrabold text-white uppercase tracking-wide">
+                📚 Thư viện Sa bàn — Nhấn vào thẻ để mở
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowArenaGallery(false)}
+                className="px-2.5 py-0.5 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-bold"
+              >
+                Đóng ✕
+              </button>
+            </div>
+
+            <div className="text-[11px] font-extrabold text-orange-300 mb-1.5">
+              🧊 {SCENE_3D_OPTIONS.length} SA BÀN 3D — KÉO THẢ, GẮP NÂNG, XE NÂNG, CẦN CẨU, XE ỦI, CẦU RÚT
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-1.5 mb-3">
+              {SCENE_3D_OPTIONS.map((opt, i) => {
+                const active = simMode === '3D' && scene3DType === opt.value;
+                const icons = ['🦾', '📦', '🚜', '🏗️', '🚧', '🌉'];
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => handleSelectAnyArena(opt.value)}
+                    className={`text-left rounded-lg p-2 border-2 transition ${
+                      active
+                        ? 'border-orange-400 bg-orange-500/25'
+                        : 'border-slate-700 bg-slate-900 hover:border-orange-400/70'
+                    }`}
+                  >
+                    <div className="text-lg leading-none mb-1">{icons[i] || '🧊'}</div>
+                    <div className="text-[10px] font-bold text-slate-100 leading-snug whitespace-normal">
+                      {opt.label.replace(/^3D Sa bàn \d+: /, '')}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="text-[11px] font-extrabold text-emerald-300 mb-1.5">
+              🗺 {MAP_2D_OPTIONS.length} SA BÀN 2D — DÒ LINE, MÊ CUNG, CẢM BIẾN, THI ĐẤU
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-1.5">
+              {MAP_2D_OPTIONS.map((opt) => {
+                const active = simMode === '2D' && mapType === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => handleSelectAnyArena(opt.value)}
+                    className={`text-left rounded-lg p-2 border-2 transition ${
+                      active
+                        ? 'border-emerald-400 bg-emerald-500/20'
+                        : 'border-slate-700 bg-slate-900 hover:border-emerald-400/70'
+                    }`}
+                  >
+                    <div className="text-[10px] font-bold text-slate-100 leading-snug whitespace-normal">
+                      {opt.label}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         )}
 
         {/* Thông báo hoàn thành nhiệm vụ dạng Overlay nổi cố định góc dưới phải */}

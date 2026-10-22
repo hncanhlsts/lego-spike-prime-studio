@@ -2254,6 +2254,7 @@ function generateBlockLinesRecursive(blockList, indentLevel = 1) {
 export function generateSpikePythonCode(blocks) {
   const lines = [
     '# LEGO® Education SPIKE™ Prime - Python 3 API (Auto-generated from Word Blocks)',
+    '# Thiết kế bởi thầy Hoàng Ngọc Cảnh - Giáo viên trường THCS & THPT Đinh Thiện Lý',
     'from hub import light_matrix, sound, motion_sensor, port',
     'import runloop, motor, motor_pair, color_sensor, distance_sensor, force_sensor, random, math',
     '',

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Home,
   Plus,
@@ -12,6 +12,7 @@ import {
   BookOpen,
   HelpCircle,
   CheckCircle2,
+  XCircle,
   Code2,
   Copy,
   Check,
@@ -24,7 +25,21 @@ import {
   Upload,
   RotateCcw,
   FilePlus2,
-  Settings2
+  Settings2,
+  Undo2,
+  Redo2,
+  GraduationCap,
+  Sparkles,
+  Lock,
+  Unlock,
+  KeyRound,
+  Compass,
+  AlertTriangle,
+  Lightbulb,
+  Award,
+  ListChecks,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import SpikeBlockItem, { SpikeWheelBadge } from './components/SpikeBlockItem';
 import VirtualSimulatorPanel, {
@@ -32,20 +47,34 @@ import VirtualSimulatorPanel, {
   SCENE_3D_OPTIONS,
   normalizeLineObject
 } from './components/VirtualSimulatorPanel';
+import BlockEncyclopediaModal from './components/BlockEncyclopediaModal';
 import {
   SPIKE_CORE_CATEGORIES,
   SPIKE_EXTENSIONS,
   SPIKE_DEVICES,
   BLOCK_DEFINITIONS,
   BLOCK_SHAPE_GUIDE,
-  REPORTER_AND_BOOLEAN_BLOCKS,
-  CURRICULUM_LESSONS,
   LED_PATTERNS,
   OFFICIAL_SPIKE_MECHANISMS,
   BUILDING_PARTS,
   BUILD_STEPS,
   generateSpikePythonCode
 } from './data/spikeData';
+import {
+  CURRICULUM,
+  LEARNING_TRACKS,
+  WIN_CONDITIONS,
+  migrateMission
+} from './data/curriculum';
+import {
+  getSolids,
+  getGoals,
+  findCollision,
+  raycastDistanceCm,
+  sampleFloorColor,
+  sensorPoint,
+  DEFAULT_START_POSES
+} from './utils/simPhysics';
 import { SpikeBluetoothManager } from './utils/bluetoothSpike';
 
 const COLOR_SWATCHES = [
@@ -67,28 +96,44 @@ const EMPTY_ARENA_CONFIG = {
   backgroundImage: ''
 };
 
-const MISSIONS_STORAGE_KEY = 'spike_prime_custom_missions_v3';
+const MISSIONS_STORAGE_KEY = 'spike_prime_curriculum_v4';
 
 function loadInitialMissions() {
   try {
     const raw = localStorage.getItem(MISSIONS_STORAGE_KEY);
-    if (!raw) return CURRICULUM_LESSONS;
+    if (!raw) return CURRICULUM.map(migrateMission);
     const saved = JSON.parse(raw);
-    if (!Array.isArray(saved) || saved.length === 0) return CURRICULUM_LESSONS;
-    // Merge any newly added default lessons that weren't in saved list
+    if (!Array.isArray(saved) || saved.length === 0) return CURRICULUM.map(migrateMission);
     const savedIds = new Set(saved.map((m) => m.id));
-    const missingDefaults = CURRICULUM_LESSONS.filter((d) => !savedIds.has(d.id));
-    return [...saved, ...missingDefaults];
+    const missingDefaults = CURRICULUM.filter((d) => !savedIds.has(d.id));
+    return [...saved, ...missingDefaults].map(migrateMission);
   } catch {
-    return CURRICULUM_LESSONS;
+    return CURRICULUM.map(migrateMission);
   }
 }
 
 export default function App() {
   const [missions, setMissions] = useState(loadInitialMissions);
-  const [currentLessonId, setCurrentLessonId] = useState(() => loadInitialMissions()[0]?.id || CURRICULUM_LESSONS[0].id);
+  const [currentLessonId, setCurrentLessonId] = useState(() => loadInitialMissions()[0]?.id || CURRICULUM[0].id);
   const currentLesson =
-    missions.find((l) => l.id === currentLessonId) || missions[0] || CURRICULUM_LESSONS[0];
+    missions.find((l) => l.id === currentLessonId) || missions[0] || CURRICULUM[0];
+
+  // Vai trò: 'student' (Học sinh) hoặc 'teacher' (Giáo viên - mã PIN: 1234)
+  const [roleMode, setRoleMode] = useState('student');
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [pinInput, setPinInput] = useState('');
+  const [pinError, setPinError] = useState('');
+
+  // Sổ tay Khối lệnh & Kỹ thuật FLL/WRO
+  const [showEncyclopediaModal, setShowEncyclopediaModal] = useState(false);
+
+  // Thanh đề bài & Gợi ý cho Học sinh
+  const [showBriefBar, setShowBriefBar] = useState(true);
+  const [revealedHintIndex, setRevealedHintIndex] = useState(0);
+  const [showSolutionPreviewModal, setShowSolutionPreviewModal] = useState(false);
+
+  // Kết quả chấm điểm nhiệm vụ
+  const [gradingResult, setGradingResult] = useState(null);
 
   const [showMissionStudioModal, setShowMissionStudioModal] = useState(false);
   const missionFileInputRef = useRef(null);
@@ -96,6 +141,11 @@ export default function App() {
   const [arenaConfig, setArenaConfig] = useState(
     currentLesson.arenaConfig || EMPTY_ARENA_CONFIG
   );
+
+  // Snapshot mặt sàn từ VirtualSimulatorPanel để cảm biến màu đọc pixel 100% chính xác
+  const floorCanvasRef = useRef(null);
+  const cargoStatusRef = useRef({ inZoneCount: 0, totalCargo: 0, isHolding: false, bridgeLowered: false });
+  const isContinuousDrivingRef = useRef({ moving: false, direction: 1, steering: 0 });
 
   // Tự động lưu danh sách nhiệm vụ vào localStorage khi có thay đổi
   useEffect(() => {
@@ -116,7 +166,92 @@ export default function App() {
   });
 
   const [ledMatrix, setLedMatrix] = useState(LED_PATTERNS.SMILE);
-  const [blocks, setBlocks] = useState(currentLesson.defaultBlocks || CURRICULUM_LESSONS[0].defaultBlocks);
+
+  // Tải code bài làm đã lưu của học sinh cho bài học này hoặc nạp code khởi đầu
+  const getInitialBlocksForLesson = useCallback((lesson) => {
+    try {
+      const saved = localStorage.getItem(`spike_work_${lesson.id}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {
+      // ignore
+    }
+    return (
+      lesson.starterBlocks ||
+      lesson.defaultBlocks || [
+        { id: 'b0', type: 'when_program_starts', params: {} }
+      ]
+    );
+  }, []);
+
+  const [blocks, setBlocksState] = useState(() => getInitialBlocksForLesson(currentLesson));
+  const undoStackRef = useRef([]);
+  const redoStackRef = useRef([]);
+
+  const setBlocks = useCallback(
+    (updater, pushHistory = true) => {
+      setBlocksState((prev) => {
+        const next = typeof updater === 'function' ? updater(prev) : updater;
+        if (pushHistory) {
+          undoStackRef.current.push(prev);
+          if (undoStackRef.current.length > 50) undoStackRef.current.shift();
+          redoStackRef.current = [];
+        }
+        try {
+          localStorage.setItem(`spike_work_${currentLessonId}`, JSON.stringify(next));
+        } catch {
+          // ignore
+        }
+        return next;
+      });
+    },
+    [currentLessonId]
+  );
+
+  const handleUndo = useCallback(() => {
+    if (undoStackRef.current.length === 0) return;
+    const prev = undoStackRef.current.pop();
+    redoStackRef.current.push(blocks);
+    setBlocksState(prev);
+    try {
+      localStorage.setItem(`spike_work_${currentLessonId}`, JSON.stringify(prev));
+    } catch {}
+    playSnapClick(420);
+    setStatusLog('↶ Đã Hoàn tác (Undo).');
+  }, [blocks, currentLessonId]);
+
+  const handleRedo = useCallback(() => {
+    if (redoStackRef.current.length === 0) return;
+    const nxt = redoStackRef.current.pop();
+    undoStackRef.current.push(blocks);
+    setBlocksState(nxt);
+    try {
+      localStorage.setItem(`spike_work_${currentLessonId}`, JSON.stringify(nxt));
+    } catch {}
+    playSnapClick(520);
+    setStatusLog('↷ Đã Làm lại (Redo).');
+  }, [blocks, currentLessonId]);
+
+  // Phím tắt bàn phím Undo (Ctrl+Z) & Redo (Ctrl+Y / Ctrl+Shift+Z)
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        handleUndo();
+      } else if (
+        ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') ||
+        ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'z')
+      ) {
+        e.preventDefault();
+        handleRedo();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [handleUndo, handleRedo]);
+
   const [activeBlockId, setActiveBlockId] = useState(null);
   const [isRunning, setIsRunning] = useState(false);
 
@@ -723,21 +858,14 @@ export default function App() {
   };
 
   const getStartPoseForMap = (targetMap, customArena = arenaConfig) => {
-    if (customArena?.startPose) {
+    if (customArena?.startPose?.x) {
       return {
         x: customArena.startPose.x,
         y: customArena.startPose.y,
         angle: customArena.startPose.angle || 0
       };
     }
-    if (targetMap === 'maze') return { x: 75, y: 88, angle: 0 };
-    if (targetMap === 'fll_challenge') return { x: 65, y: 205, angle: 0 };
-    if (targetMap === 'loop_circuit') return { x: 140, y: 42, angle: 0 };
-    if (targetMap === 'rescue_line') return { x: 65, y: 200, angle: 0 };
-    if (targetMap === 'parking_garage') return { x: 65, y: 195, angle: 0 };
-    if (targetMap === 'sumo_ring') return { x: 205, y: 132, angle: 0 };
-    if (targetMap === 'warehouse_grid') return { x: 90, y: 130, angle: 0 };
-    return { x: 75, y: 132, angle: 0 };
+    return DEFAULT_START_POSES[targetMap] || { x: 75, y: 132, angle: 0 };
   };
 
   const resetSimulatorPose = (targetMap = mapType, customArena = arenaConfig) => {
@@ -771,7 +899,14 @@ export default function App() {
     setIsRunning(false);
     setActiveBlockId(null);
     setCurrentLessonId(lesson.id);
-    setBlocks(lesson.defaultBlocks || [{ id: 'b0', type: 'when_program_starts', params: {} }]);
+
+    const savedOrStarter = getInitialBlocksForLesson(lesson);
+    setBlocksState(savedOrStarter);
+    undoStackRef.current = [];
+    redoStackRef.current = [];
+    setRevealedHintIndex(0);
+    setGradingResult(null);
+
     setSimMode(lesson.mode || '2D');
     const nextMap =
       lesson.mapType && lesson.mapType !== '3d_mission' ? lesson.mapType : 'sensor_lab';
@@ -1089,58 +1224,28 @@ export default function App() {
     }
   };
 
-  const distPointToSeg = (px, py, x1, y1, x2, y2) => {
-    const dx = x2 - x1;
-    const dy = y2 - y1;
-    const lenSq = dx * dx + dy * dy;
-    if (lenSq === 0) return Math.hypot(px - x1, py - y1);
-    let t = ((px - x1) * dx + (py - y1) * dy) / lenSq;
-    t = Math.max(0, Math.min(1, t));
-    return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
-  };
-
-  // Tính khoảng cách cảm biến siêu âm (Port E) và cảm biến màu (Port D) theo thời gian thực trên sa bàn
+  // Cảm biến thời gian thực: dùng snapshot mặt sàn từ Canvas 2D và tia siêu âm raycast theo góc xe
   const computeLiveArenaSensors = (px, py, angleDeg) => {
-    const rad = (angleDeg * Math.PI) / 180;
-    const sensorX = px + Math.cos(rad) * 18;
-    const sensorY = py + Math.sin(rad) * 18;
+    const solids = getSolids(mapType, arenaConfig);
+    const poseObj = { x: px, y: py, angle: angleDeg };
+    const minCm = raycastDistanceCm(poseObj, solids);
 
-    // 1. Cảm biến khoảng cách (Port E): đo tới vật cản mặc định + vật cản/tường tự đặt
-    let minCm = Math.max(5, Math.round((430 - px) * 0.35));
-    if (arenaConfig?.obstacles?.length) {
-      for (const obs of arenaConfig.obstacles) {
-        const cx = obs.w ? obs.x + obs.w / 2 : obs.x;
-        const cy = obs.h ? obs.y + obs.h / 2 : obs.y;
-        const dx = cx - px;
-        const dy = cy - py;
-        const distPx = Math.hypot(dx, dy) - (obs.r || 18);
-        const angleToObs = (Math.atan2(dy, dx) * 180) / Math.PI;
-        const angleDiff = Math.abs(((angleToObs - angleDeg + 540) % 360) - 180);
-        if (angleDiff < 45 && distPx > 0) {
-          const cm = Math.max(4, Math.round(distPx * 0.35));
-          if (cm < minCm) minCm = cm;
-        }
-      }
-    }
-    if (arenaConfig?.walls?.length) {
-      for (const w of arenaConfig.walls) {
-        const cx = w.x + w.w / 2;
-        const cy = w.y + w.h / 2;
-        const distPx = Math.hypot(cx - px, cy - py);
-        const cm = Math.max(4, Math.round(distPx * 0.35));
-        if (cm < minCm) minCm = cm;
-      }
-    }
-
-    // 2. Cảm biến màu (Port D): kiểm tra dải màu tự đặt hoặc đường line tự vẽ (cả tự do & đoạn thẳng)
+    const sPt = sensorPoint(px, py, angleDeg);
     let detectedColor = null;
-    if (arenaConfig?.colorPatches?.length) {
+    if (floorCanvasRef.current) {
+      const sampled = sampleFloorColor(floorCanvasRef.current, sPt.x, sPt.y);
+      detectedColor = {
+        color: sampled.color,
+        reflection: sampled.reflection,
+        rawRgb: sampled.rawRgb
+      };
+    } else if (arenaConfig?.colorPatches?.length) {
       for (const cp of arenaConfig.colorPatches) {
         if (
-          sensorX >= cp.x - 4 &&
-          sensorX <= cp.x + cp.w + 4 &&
-          sensorY >= cp.y - 4 &&
-          sensorY <= cp.y + cp.h + 4
+          sPt.x >= cp.x - 4 &&
+          sPt.x <= cp.x + cp.w + 4 &&
+          sPt.y >= cp.y - 4 &&
+          sPt.y <= cp.y + cp.h + 4
         ) {
           const sw = COLOR_SWATCHES.find((s) => s.name === cp.color);
           detectedColor = {
@@ -1151,41 +1256,112 @@ export default function App() {
         }
       }
     }
-    if (!detectedColor && arenaConfig?.lines?.length) {
-      for (let idx = 0; idx < arenaConfig.lines.length; idx++) {
-        const lineObj = normalizeLineObject(arenaConfig.lines[idx], idx);
-        const pts = lineObj.points || [];
-        const hitRadius = Math.max(10, (lineObj.width || 14) * 0.65);
-        for (let i = 0; i < pts.length - 1; i++) {
-          if (
-            distPointToSeg(sensorX, sensorY, pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y) <=
-            hitRadius
-          ) {
-            const cName = lineObj.colorName || 'BLACK';
-            const sw = COLOR_SWATCHES.find((s) => s.name === cName);
-            detectedColor = {
-              color: cName,
-              reflection: sw ? sw.reflection : 14
-            };
-            break;
-          }
-        }
-        if (detectedColor) break;
-      }
-    }
 
     return { distanceCm: minCm, detectedColor };
   };
 
-  const checkCustomGoalReached = (px, py) => {
-    if (arenaConfig?.goals?.length) {
-      for (const g of arenaConfig.goals) {
-        if (px >= g.x - 12 && px <= g.x + g.w + 12 && py >= g.y - 12 && py <= g.y + g.h + 12) {
-          return true;
-        }
+  const evaluateMissionSuccess = (finalPose, trail, collisionOccurred) => {
+    const win = currentLesson.winCondition || 'reach_goal';
+    const goals = getGoals(mapType, arenaConfig);
+
+    let passed = false;
+    let reason = '';
+    const criteriaResults = [];
+
+    const insideGoal = goals.some(
+      (g) =>
+        finalPose.x >= g.x &&
+        finalPose.x <= g.x + g.w &&
+        finalPose.y >= g.y &&
+        finalPose.y <= g.y + g.h
+    );
+
+    switch (win) {
+      case 'reach_goal':
+        passed = insideGoal && !collisionOccurred;
+        reason = passed
+          ? 'Robot đã tiến vào vùng Đích GOAL an toàn!'
+          : collisionOccurred
+          ? 'Robot đã va chạm chướng ngại vật/tường!'
+          : 'Robot chưa dừng trong vùng Đích GOAL.';
+        criteriaResults.push({ label: 'Vào vùng Đích GOAL', passed: insideGoal });
+        criteriaResults.push({ label: 'Không va chạm', passed: !collisionOccurred });
+        break;
+
+      case 'stop_before_obstacle': {
+        const dist = finalPose.distanceCm;
+        const goodDist = dist >= 8 && dist <= 32;
+        passed = goodDist && !collisionOccurred;
+        reason = passed
+          ? `Robot đã dừng trước vật cản ở cự ly an toàn (${Math.round(dist)} cm)!`
+          : collisionOccurred
+          ? 'Robot đã đâm vào vật cản!'
+          : `Khoảng cách hiện tại: ${Math.round(dist)} cm (yêu cầu trong khoảng 8 - 32 cm).`;
+        criteriaResults.push({ label: 'Dừng cách vật cản 8 - 32 cm', passed: goodDist });
+        criteriaResults.push({ label: 'Không va chạm', passed: !collisionOccurred });
+        break;
       }
+
+      case 'stop_on_color': {
+        const live = computeLiveArenaSensors(finalPose.x, finalPose.y, finalPose.angle);
+        const col = live.detectedColor?.color;
+        const ref = live.detectedColor?.reflection;
+        const isTarget = col === 'RED' || col === 'BLACK' || ref < 25;
+        passed = isTarget;
+        reason = passed
+          ? `Cảm biến màu đã nhận diện vạch màu (${col}) và robot đã dừng thành công!`
+          : `Robot dừng ngoài vạch màu (màu hiện tại: ${col || 'WHITE'}).`;
+        criteriaResults.push({ label: 'Dừng đúng trên vạch màu chỉ định', passed: isTarget });
+        break;
+      }
+
+      case 'cargo_in_zone': {
+        const count = cargoStatusRef.current?.inZoneCount || 0;
+        passed = count >= 1;
+        reason = passed
+          ? `Đã vận chuyển thành công ${count} kiện hàng vào vùng đích!`
+          : 'Chưa có kiện hàng nào được đặt vào vùng đích (Drop Zone).';
+        criteriaResults.push({ label: 'Đặt kiện hàng vào Drop Zone', passed: count >= 1 });
+        break;
+      }
+
+      case 'bridge_crossing': {
+        const crossed = finalPose.x >= 380;
+        const lowered = cargoStatusRef.current?.bridgeLowered || false;
+        passed = crossed && lowered;
+        reason = passed
+          ? 'Đã hạ cầu rút thành công và lái robot vượt qua bờ bên kia!'
+          : !lowered
+          ? 'Cầu rút chưa được hạ xuống phẳng!'
+          : 'Robot chưa vượt qua cầu tới bờ bên kia.';
+        criteriaResults.push({ label: 'Hạ cầu rút phẳng', passed: lowered });
+        criteriaResults.push({ label: 'Lái robot vượt qua cầu', passed: crossed });
+        break;
+      }
+
+      case 'return_to_start': {
+        const sp = getStartPoseForMap(mapType, arenaConfig);
+        const d = Math.hypot(finalPose.x - sp.x, finalPose.y - sp.y);
+        const moved = (trail?.length || 0) > 8;
+        passed = d < 40 && moved && !collisionOccurred;
+        reason = passed
+          ? 'Robot đã hoàn thành lộ trình và quay trở về điểm xuất phát!'
+          : 'Robot chưa quay về đúng vị trí xuất phát ban đầu.';
+        criteriaResults.push({ label: 'Di chuyển theo lộ trình', passed: moved });
+        criteriaResults.push({ label: 'Quay về vị trí xuất phát (±40px)', passed: d < 40 });
+        break;
+      }
+
+      case 'run_complete':
+      default:
+        passed = !collisionOccurred;
+        reason = passed ? 'Chương trình đã thực thi hoàn tất!' : 'Đã xảy ra va chạm trong lúc chạy!';
+        criteriaResults.push({ label: 'Chạy hết khối lệnh', passed: true });
+        criteriaResults.push({ label: 'Không va chạm', passed: !collisionOccurred });
+        break;
     }
-    return false;
+
+    return { passed, reason, criteriaResults };
   };
 
   // Đánh giá biểu thức điều kiện Boolean (< >) khi chạy if / if-else / wait-until / repeat-until
@@ -1241,11 +1417,36 @@ export default function App() {
     stopFlagRef.current = false;
     setIsRunning(true);
     setMissionCompleted(false);
-    setStatusLog('▶ Đang chạy chồng lệnh SPIKE™ Prime trên Sa bàn...');
+    setGradingResult(null);
 
-    let pose = { ...robotPose };
+    // Tự động khôi phục tư thế xuất phát ban đầu của Robot trước khi chạy để kết quả luôn nhất quán
+    const sp = getStartPoseForMap(mapType, arenaConfig);
+    let pose = {
+      x: sp.x,
+      y: sp.y,
+      angle: sp.angle,
+      distanceCm: 95,
+      armAngle: 35,
+      gripperClosed: false,
+      cargoGrabbed: false,
+      trail: [{ x: sp.x, y: sp.y }]
+    };
+    setRobotPose({ ...pose });
+    setTelemetry((prev) => ({
+      ...prev,
+      gyroYaw: sp.angle,
+      displayMessage: '',
+      distanceSensor: { cm: 95 }
+    }));
+    await sleep(120);
+
+    setStatusLog('▶ Đang chạy chương trình SPIKE™ Prime trên Sa bàn...');
+
+    const solids = getSolids(mapType, arenaConfig);
+    let collisionOccurred = false;
     let moveSpeed = 50;
     let motorSpeeds = { A: 75, B: 75, C: 75, D: 75, E: 75, F: 75 };
+    isContinuousDrivingRef.current = { moving: false, direction: 1, steering: 0 };
 
     const executeBlockList = async (blockList) => {
       for (const block of blockList || []) {
@@ -1263,13 +1464,13 @@ export default function App() {
           case 'when_hub_button':
           case 'when_condition':
           case 'define_my_block':
-            await sleep(200);
+            await sleep(180);
             break;
 
           case 'motor_set_speed':
             motorSpeeds[p.port] = Number(p.speed);
             setStatusLog(`${p.port} set speed to ${p.speed}%`);
-            await sleep(160);
+            await sleep(150);
             break;
 
           case 'motor_run_for_duration': {
@@ -1339,28 +1540,28 @@ export default function App() {
           case 'motor_start':
           case 'more_motor_start_power':
             setStatusLog(`${p.port} start motor`);
-            await sleep(200);
+            await sleep(180);
             break;
 
           case 'motor_stop':
             setStatusLog(`${p.port} stop motor`);
-            await sleep(180);
+            await sleep(150);
             break;
 
           case 'set_movement_motors':
             setStatusLog(`set movement motors to ${p.ports}`);
-            await sleep(160);
+            await sleep(150);
             break;
 
           case 'set_movement_speed':
             moveSpeed = Number(p.speed);
             setStatusLog(`set movement speed to ${moveSpeed}%`);
-            await sleep(160);
+            await sleep(150);
             break;
 
           case 'set_motor_rotation_distance':
             setStatusLog(`set 1 motor rotation to ${p.distance} ${p.unit} moved`);
-            await sleep(160);
+            await sleep(150);
             break;
 
           case 'move_for_duration': {
@@ -1374,15 +1575,23 @@ export default function App() {
                 ? (p.value / 360) * 17.5
                 : p.value * 25;
             const totalPx = cmDist * 1.1;
-            const steps = Math.max(8, Math.min(24, Math.round(Math.abs(totalPx) / 3)));
+            const steps = Math.max(8, Math.min(26, Math.round(Math.abs(totalPx) / 3)));
             const stepDist = (totalPx / steps) * sign;
             setStatusLog(`move ${p.direction === 'forward' ? '↑' : '↓'} for ${p.value} ${p.unit}`);
 
             for (let i = 0; i < steps; i++) {
               if (stopFlagRef.current) break;
               const rad = (pose.angle * Math.PI) / 180;
-              pose.x = Math.max(30, Math.min(480, pose.x + Math.cos(rad) * stepDist));
-              pose.y = Math.max(30, Math.min(235, pose.y + Math.sin(rad) * stepDist));
+              const nx = Math.max(25, Math.min(495, pose.x + Math.cos(rad) * stepDist));
+              const ny = Math.max(25, Math.min(240, pose.y + Math.sin(rad) * stepDist));
+              const col = findCollision({ x: nx, y: ny }, solids);
+              if (col) {
+                collisionOccurred = true;
+                setStatusLog(`⚠️ Robot va chạm vào ${col.kind === 'wall' ? 'tường chắn' : 'vật cản'}!`);
+                break;
+              }
+              pose.x = nx;
+              pose.y = ny;
               const live = computeLiveArenaSensors(pose.x, pose.y, pose.angle);
               pose.distanceCm = live.distanceCm;
               pose.trail = [...pose.trail, { x: pose.x, y: pose.y }];
@@ -1413,10 +1622,13 @@ export default function App() {
             for (let i = 0; i < steps; i++) {
               if (stopFlagRef.current) break;
               pose.angle += stepAng;
+              const live = computeLiveArenaSensors(pose.x, pose.y, pose.angle);
+              pose.distanceCm = live.distanceCm;
               setRobotPose({ ...pose });
               setTelemetry((prev) => ({
                 ...prev,
-                gyroYaw: pose.angle
+                gyroYaw: pose.angle,
+                distanceSensor: { cm: pose.distanceCm }
               }));
               await sleep(25);
             }
@@ -1425,34 +1637,15 @@ export default function App() {
 
           case 'start_moving': {
             const sign = p.direction === 'backward' ? -1 : 1;
-            const rad = (pose.angle * Math.PI) / 180;
-            pose.x = Math.max(30, Math.min(480, pose.x + Math.cos(rad) * 10 * sign));
-            pose.y = Math.max(30, Math.min(235, pose.y + Math.sin(rad) * 10 * sign));
-            const live = computeLiveArenaSensors(pose.x, pose.y, pose.angle);
-            pose.distanceCm = live.distanceCm;
-            pose.trail = [...pose.trail, { x: pose.x, y: pose.y }];
-            setRobotPose({ ...pose });
+            isContinuousDrivingRef.current = { moving: true, direction: sign, steering: 0 };
             setStatusLog(`start moving ${p.direction === 'backward' ? '↓' : '↑'}`);
-            await sleep(90);
+            await sleep(60);
             break;
           }
 
           case 'start_moving_steering': {
             const steer = Number(p.steering ?? 30);
-            pose.angle += steer * 0.12;
-            const rad = (pose.angle * Math.PI) / 180;
-            pose.x = Math.max(30, Math.min(480, pose.x + Math.cos(rad) * 8));
-            pose.y = Math.max(30, Math.min(235, pose.y + Math.sin(rad) * 8));
-            const live = computeLiveArenaSensors(pose.x, pose.y, pose.angle);
-            pose.distanceCm = live.distanceCm;
-            pose.trail = [...pose.trail, { x: pose.x, y: pose.y }];
-            setRobotPose({ ...pose });
-            setTelemetry((prev) => ({
-              ...prev,
-              gyroYaw: pose.angle,
-              distanceSensor: { cm: pose.distanceCm },
-              colorSensor: live.detectedColor || prev.colorSensor
-            }));
+            isContinuousDrivingRef.current = { moving: true, direction: 1, steering: steer };
             setStatusLog(`start moving steering (${steer})`);
             await sleep(60);
             break;
@@ -1460,12 +1653,13 @@ export default function App() {
 
           case 'more_movement_tank':
             setStatusLog(`start moving at ${p.leftSpeed}% / ${p.rightSpeed}%`);
-            await sleep(180);
+            await sleep(150);
             break;
 
           case 'stop_moving':
+            isContinuousDrivingRef.current = { moving: false, direction: 0, steering: 0 };
             setStatusLog('stop moving');
-            await sleep(180);
+            await sleep(120);
             break;
 
           case 'light_matrix_turn_on_for_seconds': {
@@ -1500,24 +1694,24 @@ export default function App() {
           case 'light_matrix_write':
             setStatusLog(`write "${p.text}" on 5x5 Light Matrix`);
             setLedMatrix(LED_PATTERNS.SMILE);
-            await sleep(500);
+            await sleep(450);
             break;
 
           case 'light_matrix_turn_off':
             setLedMatrix(LED_PATTERNS.OFF);
             setStatusLog('turn off pixels');
-            await sleep(200);
+            await sleep(180);
             break;
 
           case 'set_center_button_light':
             setTelemetry((prev) => ({ ...prev, centerButtonColor: p.color }));
             setStatusLog(`set Power Button light to ${p.color}`);
-            await sleep(200);
+            await sleep(180);
             break;
 
           case 'light_up_distance_sensor':
             setStatusLog(`${p.port} light up Distance Sensor`);
-            await sleep(240);
+            await sleep(200);
             break;
 
           case 'play_beep_for_seconds':
@@ -1543,13 +1737,46 @@ export default function App() {
           case 'stop_all_sounds':
             setTelemetry((prev) => ({ ...prev, hubSoundPlaying: false }));
             setStatusLog('stop all sounds');
-            await sleep(160);
+            await sleep(150);
             break;
 
-          case 'wait_seconds':
-            setStatusLog(`wait ${p.seconds} seconds`);
-            await sleep((p.seconds || 1) * 1000);
+          case 'wait_seconds': {
+            const totalSec = Math.max(0.05, Number(p.seconds ?? 1));
+            const tickMs = 28;
+            const totalTicks = Math.round((totalSec * 1000) / tickMs);
+            setStatusLog(`wait ${totalSec} seconds...`);
+            for (let t = 0; t < totalTicks; t++) {
+              if (stopFlagRef.current) break;
+              if (isContinuousDrivingRef.current.moving) {
+                const { direction, steering } = isContinuousDrivingRef.current;
+                if (steering !== 0) pose.angle += steering * 0.08;
+                const rad = (pose.angle * Math.PI) / 180;
+                const step = (moveSpeed / 100) * 3.5 * direction;
+                const nx = Math.max(25, Math.min(495, pose.x + Math.cos(rad) * step));
+                const ny = Math.max(25, Math.min(240, pose.y + Math.sin(rad) * step));
+                const col = findCollision({ x: nx, y: ny }, solids);
+                if (col) {
+                  collisionOccurred = true;
+                  setStatusLog(`⚠️ Robot va chạm vào ${col.kind === 'wall' ? 'tường chắn' : 'vật cản'}!`);
+                  break;
+                }
+                pose.x = nx;
+                pose.y = ny;
+                pose.trail = [...pose.trail, { x: nx, y: ny }];
+                const live = computeLiveArenaSensors(pose.x, pose.y, pose.angle);
+                pose.distanceCm = live.distanceCm;
+                setRobotPose({ ...pose });
+                setTelemetry((prev) => ({
+                  ...prev,
+                  gyroYaw: pose.angle,
+                  distanceSensor: { cm: pose.distanceCm },
+                  colorSensor: live.detectedColor || prev.colorSensor
+                }));
+              }
+              await sleep(tickMs);
+            }
             break;
+          }
 
           // ================= KHỐI CHỮ C LỒNG NHAU: REPEAT, FOREVER, IF, IF-ELSE, REPEAT UNTIL =================
           case 'repeat_loop_line_follow': {
@@ -1666,7 +1893,7 @@ export default function App() {
             setStatusLog(
               `if < > then -> Điều kiện = ${condResult ? 'ĐÚNG (True)' : 'SAI (False)'}`
             );
-            await sleep(160);
+            await sleep(150);
             if (condResult && Array.isArray(block.children) && block.children.length > 0) {
               await executeBlockList(block.children);
             }
@@ -1680,7 +1907,7 @@ export default function App() {
                 condResult ? 'ĐÚNG (Chạy nhánh then)' : 'SAI (Chạy nhánh else)'
               }`
             );
-            await sleep(160);
+            await sleep(150);
             if (condResult) {
               if (Array.isArray(block.children) && block.children.length > 0) {
                 await executeBlockList(block.children);
@@ -1706,13 +1933,20 @@ export default function App() {
                 await executeBlockList(block.children);
               } else {
                 const rad = (pose.angle * Math.PI) / 180;
-                pose.x = Math.max(30, Math.min(470, pose.x + Math.cos(rad) * 5));
-                pose.y = Math.max(30, Math.min(235, pose.y + Math.sin(rad) * 5));
+                const nx = Math.max(25, Math.min(495, pose.x + Math.cos(rad) * 4.5));
+                const ny = Math.max(25, Math.min(240, pose.y + Math.sin(rad) * 4.5));
+                const col = findCollision({ x: nx, y: ny }, solids);
+                if (col) {
+                  collisionOccurred = true;
+                  break;
+                }
+                pose.x = nx;
+                pose.y = ny;
                 const live = computeLiveArenaSensors(pose.x, pose.y, pose.angle);
                 pose.distanceCm = live.distanceCm;
                 pose.trail = [...pose.trail, { x: pose.x, y: pose.y }];
                 setRobotPose({ ...pose });
-                await sleep(35);
+                await sleep(30);
               }
             }
             break;
@@ -1724,23 +1958,36 @@ export default function App() {
             while (
               !stopFlagRef.current &&
               !evaluateBooleanCondition(block.conditionBlock, p, pose) &&
-              guard < 85
+              guard < 180
             ) {
               guard += 1;
-              const rad = (pose.angle * Math.PI) / 180;
-              pose.x = Math.max(30, Math.min(470, pose.x + Math.cos(rad) * 4.5));
-              pose.y = Math.max(30, Math.min(235, pose.y + Math.sin(rad) * 4.5));
+              if (isContinuousDrivingRef.current.moving) {
+                const { direction, steering } = isContinuousDrivingRef.current;
+                if (steering !== 0) pose.angle += steering * 0.08;
+                const rad = (pose.angle * Math.PI) / 180;
+                const step = (moveSpeed / 100) * 3.4 * direction;
+                const nx = Math.max(25, Math.min(495, pose.x + Math.cos(rad) * step));
+                const ny = Math.max(25, Math.min(240, pose.y + Math.sin(rad) * step));
+                const col = findCollision({ x: nx, y: ny }, solids);
+                if (col) {
+                  collisionOccurred = true;
+                  setStatusLog(`⚠️ Robot va chạm vào ${col.kind === 'wall' ? 'tường chắn' : 'vật cản'}!`);
+                  break;
+                }
+                pose.x = nx;
+                pose.y = ny;
+                pose.trail = [...pose.trail, { x: nx, y: ny }];
+              }
               const live = computeLiveArenaSensors(pose.x, pose.y, pose.angle);
               pose.distanceCm = live.distanceCm;
-              pose.trail = [...pose.trail, { x: pose.x, y: pose.y }];
               setRobotPose({ ...pose });
               setTelemetry((prev) => ({
                 ...prev,
+                gyroYaw: pose.angle,
                 distanceSensor: { cm: pose.distanceCm },
                 colorSensor: live.detectedColor || prev.colorSensor
               }));
-              if (pose.x >= 460) break;
-              await sleep(30);
+              await sleep(28);
             }
             break;
           }
@@ -1750,7 +1997,7 @@ export default function App() {
             setRobotPose({ ...pose });
             setTelemetry((prev) => ({ ...prev, gyroYaw: 0 }));
             setStatusLog('set yaw angle to 0');
-            await sleep(160);
+            await sleep(150);
             break;
 
           case 'more_motor_go_relative': {
@@ -1782,25 +2029,36 @@ export default function App() {
             break;
 
           default:
-            await sleep(180);
+            await sleep(160);
         }
       }
     };
 
     await executeBlockList(blocks);
 
+    isContinuousDrivingRef.current = { moving: false, direction: 0, steering: 0 };
     setActiveBlockId(null);
     setIsRunning(false);
 
     if (!stopFlagRef.current || blocks.some((b) => b.type === 'stop_all_cap')) {
-      const reachedCustomGoal = checkCustomGoalReached(pose.x, pose.y);
-      setMissionCompleted(true);
-      setCompletedLessons((prev) => ({ ...prev, [currentLesson.id]: true }));
-      setStatusLog(
-        reachedCustomGoal
-          ? `🏆 Xuất sắc! Robot đã chạm vùng Đích GOAL trong "${currentLesson.title}"!`
-          : `✅ Hoàn thành "${currentLesson.title}"! Nhấn nút vàng "Connect" để kết nối Robot thật.`
-      );
+      const evalRes = evaluateMissionSuccess(pose, pose.trail, collisionOccurred);
+      setGradingResult({
+        show: true,
+        passed: evalRes.passed,
+        reason: evalRes.reason,
+        criteriaResults: evalRes.criteriaResults,
+        title: currentLesson.title,
+        timestamp: Date.now()
+      });
+      if (evalRes.passed) {
+        setMissionCompleted(true);
+        setCompletedLessons((prev) => ({ ...prev, [currentLesson.id]: true }));
+        playSnapClick(780);
+        setStatusLog(`🏆 ĐẠT TIÊU CHÍ: ${evalRes.reason}`);
+      } else {
+        playSnapClick(280);
+        setStatusLog(`❌ CHƯA ĐẠT: ${evalRes.reason}`);
+      }
     }
   };
 
@@ -2262,6 +2520,240 @@ export default function App() {
         </div>
       )}
 
+      {/* MODAL SỔ TAY KHỐI LỆNH & 6 KỸ THUẬT LẬP TRÌNH FLL/WRO */}
+      {showEncyclopediaModal && (
+        <BlockEncyclopediaModal
+          isOpen={showEncyclopediaModal}
+          onClose={() => setShowEncyclopediaModal(false)}
+          onInsertBlock={(blockType) => {
+            handleInsertBlockAt(blockType, blocks.length);
+            setShowEncyclopediaModal(false);
+          }}
+        />
+      )}
+
+      {/* MODAL MÃ PIN GIÁO VIÊN (PIN MẶC ĐỊNH: 1234) */}
+      {showPinModal && (
+        <div className="fixed inset-0 bg-slate-900/65 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 shadow-2xl max-w-sm w-full border border-slate-200 text-center">
+            <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-700 mx-auto mb-3 flex items-center justify-center">
+              <KeyRound className="w-6 h-6" />
+            </div>
+            <h3 className="text-base font-extrabold text-slate-900 mb-1">
+              Xác Nhận Quyền Giáo Viên
+            </h3>
+            <p className="text-xs text-slate-500 mb-4">
+              Nhập mã PIN Giáo viên để mở khóa toàn bộ Lời giải mẫu và quyền biên tập nhiệm vụ (Mặc định: <strong className="text-slate-800">1234</strong>).
+            </p>
+            <input
+              type="password"
+              maxLength={8}
+              autoFocus
+              value={pinInput}
+              onChange={(e) => {
+                setPinInput(e.target.value);
+                setPinError('');
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  if (pinInput === '1234') {
+                    setRoleMode('teacher');
+                    setShowPinModal(false);
+                    setPinInput('');
+                    setStatusLog('👨‍🏫 Đã kích hoạt Chế độ Giáo viên (Toàn quyền).');
+                  } else {
+                    setPinError('Mã PIN không đúng (Gợi ý: 1234)');
+                  }
+                }
+              }}
+              placeholder="Nhập mã PIN (1234)..."
+              className="w-full text-center tracking-widest text-lg font-mono px-3 py-2 border rounded-xl mb-2 focus:ring-2 focus:ring-amber-400 outline-none"
+            />
+            {pinError && <p className="text-xs text-rose-600 font-bold mb-3">{pinError}</p>}
+            <div className="flex gap-2 justify-center mt-3">
+              <button
+                onClick={() => {
+                  setShowPinModal(false);
+                  setPinInput('');
+                  setPinError('');
+                }}
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                onClick={() => {
+                  if (pinInput === '1234') {
+                    setRoleMode('teacher');
+                    setShowPinModal(false);
+                    setPinInput('');
+                    setStatusLog('👨‍🏫 Đã kích hoạt Chế độ Giáo viên (Toàn quyền).');
+                  } else {
+                    setPinError('Mã PIN không đúng (Gợi ý: 1234)');
+                  }
+                }}
+                className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold"
+              >
+                Xác nhận
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL XEM LỜI GIẢI MẪU CHO GIÁO VIÊN / HỌC SINH */}
+      {showSolutionPreviewModal && (
+        <div className="fixed inset-0 bg-slate-900/65 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-xl w-full p-5 shadow-2xl border border-slate-200 flex flex-col max-h-[85vh]">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-amber-500" />
+                <h3 className="text-sm font-extrabold text-slate-900">
+                  Lời Giải Mẫu: {currentLesson.title}
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowSolutionPreviewModal(false)}
+                className="px-2.5 py-1 rounded-full bg-slate-100 hover:bg-slate-200 text-xs font-bold"
+              >
+                Đóng ✕
+              </button>
+            </div>
+            <div className="my-3 text-xs text-slate-600">
+              <p className="mb-2">
+                Dưới đây là chồng lệnh chuẩn được thiết kế bởi thầy Hoàng Ngọc Cảnh để giải quyết nhiệm vụ này.
+              </p>
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 max-h-[45vh] overflow-y-auto space-y-1.5">
+                {(currentLesson.solutionBlocks || []).map((b, i) => {
+                  const bDef = BLOCK_DEFINITIONS[b.type];
+                  return (
+                    <div
+                      key={b.id || i}
+                      className="px-3 py-1.5 rounded-lg text-white font-mono text-xs flex items-center justify-between shadow-sm"
+                      style={{ backgroundColor: bDef?.color || '#0090FF' }}
+                    >
+                      <span className="font-bold">
+                        #{i + 1} {bDef?.nameEn || b.type}
+                      </span>
+                      <span className="text-[10px] opacity-90">{bDef?.nameVi}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">
+              <button
+                onClick={() => {
+                  setBlocks(currentLesson.solutionBlocks || []);
+                  setShowSolutionPreviewModal(false);
+                  playSnapClick(650);
+                  setStatusLog('✨ Đã nạp Lời giải mẫu vào vùng lập trình!');
+                }}
+                className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs shadow"
+              >
+                Nạp Lời Giải Mẫu Vào Vùng Lập Trình
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL KẾT QUẢ CHẤM ĐIỂM NHIỆM VỤ (GRADING RESULT) */}
+      {gradingResult && gradingResult.show && (
+        <div className="fixed inset-0 bg-slate-900/65 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 text-center animate-in zoom-in-95 duration-150">
+            <div
+              className={`w-14 h-14 rounded-full mx-auto mb-3 flex items-center justify-center ${
+                gradingResult.passed
+                  ? 'bg-emerald-100 text-emerald-600 ring-4 ring-emerald-50'
+                  : 'bg-rose-100 text-rose-600 ring-4 ring-rose-50'
+              }`}
+            >
+              {gradingResult.passed ? (
+                <Award className="w-8 h-8" />
+              ) : (
+                <AlertTriangle className="w-8 h-8" />
+              )}
+            </div>
+
+            <h3 className="text-lg font-black text-slate-900 mb-1">
+              {gradingResult.passed ? '🎉 HOÀN THÀNH XUẤT SẮC!' : '⚠️ CHƯA ĐẠT TIÊU CHÍ'}
+            </h3>
+            <p className="text-xs text-slate-500 mb-4 font-medium">
+              {gradingResult.title}
+            </p>
+
+            <div
+              className={`p-3 rounded-xl text-xs mb-4 text-left border ${
+                gradingResult.passed
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                  : 'bg-rose-50 border-rose-200 text-rose-900'
+              }`}
+            >
+              <div className="font-bold mb-1">Đánh giá hệ thống:</div>
+              <div>{gradingResult.reason}</div>
+            </div>
+
+            {gradingResult.criteriaResults && gradingResult.criteriaResults.length > 0 && (
+              <div className="text-left text-xs mb-5 space-y-1.5">
+                <div className="font-extrabold text-slate-700 mb-1 uppercase text-[10px] tracking-wider">
+                  Bảng kiểm tiêu chí:
+                </div>
+                {gradingResult.criteriaResults.map((c, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-200"
+                  >
+                    <span className="text-slate-700 font-semibold">{c.label}</span>
+                    <span
+                      className={`inline-flex items-center gap-1 font-bold px-2 py-0.5 rounded text-[10px] ${
+                        c.passed
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : 'bg-rose-100 text-rose-700'
+                      }`}
+                    >
+                      {c.passed ? '✓ Đạt' : '✕ Chưa đạt'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex gap-2 justify-center">
+              <button
+                onClick={() => setGradingResult(null)}
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold"
+              >
+                Đóng
+              </button>
+              <button
+                onClick={() => {
+                  setGradingResult(null);
+                  resetSimulatorPose();
+                }}
+                className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold"
+              >
+                ↺ Đặt Lại Vị Trí
+              </button>
+              {gradingResult.passed && (
+                <button
+                  onClick={() => {
+                    setGradingResult(null);
+                    const idx = missions.findIndex((m) => m.id === currentLessonId);
+                    if (idx >= 0 && idx < missions.length - 1) {
+                      handleSelectLesson(missions[idx + 1]);
+                    }
+                  }}
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold shadow"
+                >
+                  Bài Tiếp Theo →
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 1. TOP PROJECT TAB BAR */}
       <header className="h-12 bg-[#eef0f3] border-b border-slate-300 px-3 flex items-center justify-between shrink-0 overflow-hidden whitespace-nowrap">
         <div className="flex items-center gap-2 min-w-0">
@@ -2273,6 +2765,7 @@ export default function App() {
             <Home className="w-4 h-4" />
           </button>
 
+          {/* CHỌN NHIỆM VỤ THEO LỘ TRÌNH 4 NHÁNH (NỀN TẢNG → ỨNG DỤNG → LUYỆN THI → TỰ DO) */}
           <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full border border-slate-300 shadow-sm shrink-0">
             <span className="w-2.5 h-2.5 rounded-full bg-yellow-400" />
             <BookOpen className="w-3.5 h-3.5 text-slate-500" />
@@ -2282,15 +2775,63 @@ export default function App() {
                 const found = missions.find((l) => l.id === e.target.value);
                 if (found) handleSelectLesson(found);
               }}
-              className="bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer pr-1 max-w-[300px]"
+              className="bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer pr-1 max-w-[280px]"
             >
-              {missions.map((lesson, idx) => (
-                <option key={lesson.id} value={lesson.id}>
-                  Nhiệm vụ {idx + 1}: {lesson.title} ({lesson.mode})
-                </option>
-              ))}
+              {LEARNING_TRACKS.map((track) => {
+                const trackMissions = missions.filter((m) => (m.track || 'mission') === track.id);
+                if (trackMissions.length === 0) return null;
+                return (
+                  <optgroup key={track.id} label={`${track.icon} ${track.name}`}>
+                    {trackMissions.map((lesson) => (
+                      <option key={lesson.id} value={lesson.id}>
+                        {lesson.title} ({lesson.mode})
+                      </option>
+                    ))}
+                  </optgroup>
+                );
+              })}
             </select>
           </div>
+
+          {/* NÚT CHUYỂN ĐỔI CHẾ ĐỘ: HỌC SINH ↔ GIÁO VIÊN */}
+          <button
+            onClick={() => {
+              if (roleMode === 'student') {
+                setShowPinModal(true);
+              } else {
+                setRoleMode('student');
+                setStatusLog('🎒 Đã chuyển về Chế độ Học sinh.');
+              }
+            }}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-extrabold border shadow-sm transition shrink-0 ${
+              roleMode === 'teacher'
+                ? 'bg-purple-600 text-white border-purple-500 shadow-purple-200'
+                : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-300'
+            }`}
+            title="Nhấn để đổi vai trò giữa Học sinh và Giáo viên (PIN: 1234)"
+          >
+            {roleMode === 'teacher' ? (
+              <>
+                <KeyRound className="w-3.5 h-3.5 text-amber-300" />
+                <span>👨‍🏫 Giáo viên</span>
+              </>
+            ) : (
+              <>
+                <GraduationCap className="w-3.5 h-3.5 text-blue-600" />
+                <span>🎒 Học sinh</span>
+              </>
+            )}
+          </button>
+
+          {/* NÚT MỞ SỔ TAY KHỐI LỆNH & 6 KỸ THUẬT LẬP TRÌNH FLL/WRO */}
+          <button
+            onClick={() => setShowEncyclopediaModal(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-extrabold shadow-sm transition shrink-0"
+            title="Tra cứu 6 kỹ thuật điều khiển FLL/WRO và Bách khoa toàn thư khối lệnh SPIKE Prime"
+          >
+            <Compass className="w-3.5 h-3.5" />
+            <span>📖 Sổ Tay Khối Lệnh & Kỹ Thuật (FLL/WRO)</span>
+          </button>
 
           <button
             onClick={() => setShowMissionStudioModal(true)}
@@ -2309,13 +2850,16 @@ export default function App() {
             <Plus className="w-3.5 h-3.5" />
             Tạo Bài Mới
           </button>
-
-          <span className="hidden 2xl:inline-block text-xs text-slate-600 bg-amber-50 border border-amber-200 px-3 py-1 rounded-full font-medium truncate max-w-sm">
-            🎯 <strong>Mục tiêu:</strong> {currentLesson.objective}
-          </span>
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
+          {/* GHI DẤU BẢN QUYỀN TRÊN THANH HEADER */}
+          <span className="hidden xl:inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-200/80 text-[10px] font-bold text-slate-700 border border-slate-300">
+            <span>Thiết kế bởi thầy</span>
+            <strong className="text-slate-900">Hoàng Ngọc Cảnh</strong>
+            <span>— Đinh Thiện Lý</span>
+          </span>
+
           <button
             onClick={handleSaveCurrentStateToMission}
             className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-white hover:bg-amber-50 text-slate-800 border border-amber-400 text-xs font-bold shadow-sm transition"
@@ -2334,14 +2878,6 @@ export default function App() {
           </button>
 
           <button
-            onClick={() => setShowShapeGuideModal((v) => !v)}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs font-bold shadow-sm transition"
-          >
-            <HelpCircle className="w-3.5 h-3.5 text-amber-500" />
-            6 Loại Khối
-          </button>
-
-          <button
             onClick={() => setRightRedZoneTab('builder')}
             className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-bold border shadow-sm transition ${
               rightRedZoneTab === 'builder'
@@ -2355,49 +2891,122 @@ export default function App() {
         </div>
       </header>
 
-      {/* MODAL GIẢI THÍCH 6 LOẠI KHỐI LỆNH */}
-      {showShapeGuideModal && (
-        <div className="bg-white border-b-2 border-amber-400 px-4 py-3 shadow-lg z-30">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-extrabold text-slate-800">
-              📘 PHẦN 1 TÀI LIỆU HỌC SINH: 6 LOẠI HÌNH DẠNG KHỐI LỆNH TRONG LEGO® SPIKE™ PRIME
+      {/* THANH ĐỀ BÀI, TIÊU CHÍ ĐẠT & GỢI Ý DÀNH CHO HỌC SINH */}
+      <div className="bg-amber-50/90 border-b border-amber-200 px-3.5 py-1.5 text-xs text-slate-800 flex flex-col gap-1 shrink-0 z-20">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 font-extrabold text-[10px] shrink-0">
+              {currentLesson.level || 'Nhiệm vụ'}
             </span>
+            <span className="font-extrabold text-slate-900 truncate">
+              {currentLesson.title}:
+            </span>
+            <span className="text-slate-700 truncate">
+              {currentLesson.objective}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            {/* Nút nạp lại Code khởi đầu */}
             <button
-              onClick={() => setShowShapeGuideModal(false)}
-              className="text-xs bg-slate-200 hover:bg-slate-300 text-slate-800 px-2.5 py-0.5 rounded-full font-bold"
+              onClick={() => {
+                const starter = currentLesson.starterBlocks || [
+                  { id: 'b0', type: 'when_program_starts', params: {} }
+                ];
+                setBlocks(starter);
+                playSnapClick(480);
+                setStatusLog('🔄 Đã nạp lại Code Khởi Đầu của bài học.');
+              }}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-700 font-bold text-[11px] border border-slate-300 shadow-sm"
+              title="Khôi phục chồng lệnh về trạng thái ban đầu của bài học"
             >
-              Đóng ✕
+              <RotateCcw className="w-3 h-3 text-blue-600" />
+              <span>Code khởi đầu</span>
+            </button>
+
+            {/* Nút xem Gợi ý từng bước (1 -> 2 -> 3) */}
+            {currentLesson.hints && currentLesson.hints.length > 0 && (
+              <button
+                onClick={() => {
+                  setRevealedHintIndex((prev) =>
+                    prev < currentLesson.hints.length ? prev + 1 : 1
+                  );
+                }}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-yellow-400 hover:bg-yellow-300 text-slate-950 font-extrabold text-[11px] shadow-sm"
+              >
+                <Lightbulb className="w-3 h-3 text-amber-900" />
+                <span>
+                  Gợi ý ({revealedHintIndex}/{currentLesson.hints.length})
+                </span>
+              </button>
+            )}
+
+            {/* Nút xem Lời giải mẫu */}
+            <button
+              onClick={() => {
+                if (currentLesson.lockSolution && roleMode === 'student') {
+                  setShowPinModal(true);
+                } else {
+                  setShowSolutionPreviewModal(true);
+                }
+              }}
+              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg font-bold text-[11px] border shadow-sm ${
+                currentLesson.lockSolution && roleMode === 'student'
+                  ? 'bg-slate-100 text-slate-500 border-slate-300 hover:bg-slate-200'
+                  : 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500'
+              }`}
+            >
+              {currentLesson.lockSolution && roleMode === 'student' ? (
+                <>
+                  <Lock className="w-3 h-3 text-slate-400" />
+                  <span>Lời giải (Khóa)</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-3 h-3 text-amber-300" />
+                  <span>Xem Lời Giải Mẫu</span>
+                </>
+              )}
+            </button>
+
+            <button
+              onClick={() => setShowBriefBar((v) => !v)}
+              className="p-1 rounded text-slate-500 hover:text-slate-800"
+              title={showBriefBar ? 'Thu gọn đề bài' : 'Mở rộng đề bài'}
+            >
+              {showBriefBar ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
             </button>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
-            {BLOCK_SHAPE_GUIDE.map((item) => (
-              <div
-                key={item.id}
-                className="bg-slate-50 border border-slate-200 rounded-xl p-2 flex flex-col justify-between"
-              >
-                <div>
-                  <div className="text-[11px] font-extrabold text-slate-800 mb-1">{item.nameVi}</div>
-                  <div
-                    className={`text-[10px] font-mono font-bold text-white px-2 py-0.5 mb-1 inline-block ${
-                      item.id === 'hat'
-                        ? 'rounded-t-xl rounded-b'
-                        : item.id === 'reporter'
-                        ? 'rounded-full'
-                        : item.id === 'boolean'
-                        ? 'spike-boolean-slot px-3'
-                        : 'rounded'
-                    }`}
-                    style={{ backgroundColor: item.color }}
-                  >
-                    {item.sampleText}
-                  </div>
-                </div>
-                <p className="text-[10px] text-slate-600 leading-snug">{item.description}</p>
-              </div>
-            ))}
-          </div>
         </div>
-      )}
+
+        {/* Nội dung chi tiết: Tiêu chí đạt + Gợi ý đang mở */}
+        {showBriefBar && (
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-amber-200/80 text-[11px]">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="font-extrabold text-slate-800">Tiêu chí hoàn thành:</span>
+              {(currentLesson.successCriteria || [currentLesson.objective]).map((c, i) => (
+                <span
+                  key={i}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white text-emerald-800 border border-emerald-300 font-semibold text-[10px]"
+                >
+                  <Check className="w-2.5 h-2.5 text-emerald-600" />
+                  {c}
+                </span>
+              ))}
+            </div>
+
+            {revealedHintIndex > 0 && currentLesson.hints?.[revealedHintIndex - 1] && (
+              <div className="w-full bg-yellow-100/90 border border-yellow-300 text-yellow-900 px-3 py-1 rounded-lg font-medium flex items-center gap-1.5 animate-in fade-in">
+                <Lightbulb className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                <span>
+                  <strong>Gợi ý #{revealedHintIndex}:</strong>{' '}
+                  {currentLesson.hints[revealedHintIndex - 1]}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* 2. KHÔNG GIAN LÀM VIỆC CHÍNH */}
       <div className="flex-1 flex overflow-hidden relative">
@@ -2719,6 +3328,25 @@ export default function App() {
             <div className="h-11 shrink-0 px-4 bg-white border-t border-slate-200 flex items-center justify-between">
               <div className="flex items-center gap-1.5 text-slate-500">
                 <button
+                  onClick={handleUndo}
+                  title="Hoàn tác thao tác khối lệnh (Undo — Ctrl+Z)"
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs border border-slate-300 transition"
+                >
+                  <Undo2 className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Undo</span>
+                </button>
+                <button
+                  onClick={handleRedo}
+                  title="Làm lại thao tác khối lệnh (Redo — Ctrl+Y)"
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs border border-slate-300 transition"
+                >
+                  <Redo2 className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Redo</span>
+                </button>
+
+                <div className="h-4 w-[1px] bg-slate-300 mx-1" />
+
+                <button
                   onClick={() => setCanvasZoom(100)}
                   title="Reset Zoom"
                   className="p-1.5 rounded hover:bg-slate-100"
@@ -2838,6 +3466,12 @@ export default function App() {
                       arenaConfig={arenaConfig}
                       onUpdateArenaConfig={handleUpdateArenaConfig}
                       onSetStartPose={handleSetStartPose}
+                      onFloorCanvasReady={(canvas) => {
+                        floorCanvasRef.current = canvas;
+                      }}
+                      onCargoStatusChange={(status) => {
+                        cargoStatusRef.current = status;
+                      }}
                     />
                   </div>
 
@@ -3151,11 +3785,13 @@ export default function App() {
               )}
             </div>
 
-            {/* CỤM NÚT STOP & PLAY/RUN Ở GÓC DƯỚI PHẢI */}
+            {/* CỤM NÚT STOP & PLAY/RUN Ở GÓC DƯỚI PHẢI + GHI DẤU BẢN QUYỀN VĨNH VIỄN */}
             <div className="h-14 pt-2 flex items-center justify-between px-2">
-              <div className="text-xs font-semibold text-slate-600 flex items-center gap-2">
-                <span className="inline-block w-2.5 h-2.5 rounded-full bg-rose-500" />
-                <span>Khung màu đỏ: Khu vực Sa bàn 2D/3D, Cơ cấu, Hub & Python</span>
+              <div className="text-xs font-semibold text-slate-600 flex items-center gap-1.5 truncate pr-2">
+                <span className="inline-block w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" />
+                <span className="text-[11px] text-slate-700 font-bold truncate">
+                  Thiết kế bởi thầy Hoàng Ngọc Cảnh — Giáo viên trường THCS & THPT Đinh Thiện Lý
+                </span>
               </div>
 
               <div className="flex items-center gap-3">
