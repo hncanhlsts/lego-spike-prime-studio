@@ -51,6 +51,7 @@ import VirtualSimulatorPanel, {
   normalizeLineObject
 } from './components/VirtualSimulatorPanel';
 import BlockEncyclopediaModal from './components/BlockEncyclopediaModal';
+import UserGuideModal from './components/UserGuideModal';
 import {
   SPIKE_CORE_CATEGORIES,
   SPIKE_EXTENSIONS,
@@ -129,6 +130,7 @@ export default function App() {
 
   // Sổ tay Khối lệnh & Kỹ thuật FLL/WRO
   const [showEncyclopediaModal, setShowEncyclopediaModal] = useState(false);
+  const [showUserGuideModal, setShowUserGuideModal] = useState(false);
 
   // Thanh đề bài & Gợi ý cho Học sinh
   const [showBriefBar, setShowBriefBar] = useState(true);
@@ -2764,6 +2766,14 @@ export default function App() {
         />
       )}
 
+      {/* MODAL SỔ TAY HƯỚNG DẪN SỬ DỤNG NHÚNG TRỰC TIẾP (HTML USER GUIDE) */}
+      {showUserGuideModal && (
+        <UserGuideModal
+          isOpen={showUserGuideModal}
+          onClose={() => setShowUserGuideModal(false)}
+        />
+      )}
+
       {/* MODAL MÃ PIN GIÁO VIÊN (PIN MẶC ĐỊNH: 1234) */}
       {showPinModal && (
         <div className="fixed inset-0 bg-slate-900/65 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -3055,6 +3065,16 @@ export default function App() {
             )}
           </button>
 
+          {/* NÚT MỞ SỔ TAY HƯỚNG DẪN SỬ DỤNG NHÚNG TRỰC TIẾP */}
+          <button
+            onClick={() => setShowUserGuideModal(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold shadow-sm transition shrink-0"
+            title="Xem Sổ tay Hướng Dẫn Sử Dụng nền tảng LEGO SPIKE Prime Studio (Tài liệu HTML nhúng trực tiếp)"
+          >
+            <HelpCircle className="w-3.5 h-3.5" />
+            <span>📖 Hướng Dẫn Sử Dụng</span>
+          </button>
+
           {/* NÚT MỞ SỔ TAY KHỐI LỆNH & 6 KỸ THUẬT LẬP TRÌNH FLL/WRO */}
           <button
             onClick={() => setShowEncyclopediaModal(true)}
@@ -3062,7 +3082,7 @@ export default function App() {
             title="Tra cứu 6 kỹ thuật điều khiển FLL/WRO và Bách khoa toàn thư khối lệnh SPIKE Prime"
           >
             <Compass className="w-3.5 h-3.5" />
-            <span>📖 Sổ Tay Khối Lệnh & Kỹ Thuật (FLL/WRO)</span>
+            <span>Sổ Tay Khối Lệnh (FLL/WRO)</span>
           </button>
 
           <button
