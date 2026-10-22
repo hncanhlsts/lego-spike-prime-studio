@@ -55,6 +55,8 @@ export const PRESET_GOALS = {
 };
 
 export const DEFAULT_START_POSES = {
+  line_track: { x: 75, y: 132, angle: 0 },
+  sensor_lab: { x: 75, y: 132, angle: 0 },
   maze: { x: 75, y: 88, angle: 0 },
   fll_challenge: { x: 65, y: 205, angle: 0 },
   loop_circuit: { x: 140, y: 42, angle: 0 },
@@ -62,7 +64,8 @@ export const DEFAULT_START_POSES = {
   parking_garage: { x: 65, y: 195, angle: 0 },
   sumo_ring: { x: 205, y: 132, angle: 0 },
   warehouse_grid: { x: 90, y: 130, angle: 0 },
-  wro_smart_city: { x: 60, y: 132, angle: 0 }
+  wro_smart_city: { x: 60, y: 132, angle: 0 },
+  '3d_mission': { x: 75, y: 132, angle: 0 }
 };
 
 // Chuẩn hóa vật cản tự đặt (hỗ trợ cả kiểu {x,y,r} cũ và {x,y,w,h} mới)
@@ -84,19 +87,52 @@ export function getGoals(mapType, arenaConfig) {
 }
 
 export function pointInRect(px, py, r, pad = 0) {
-  return px >= r.x - pad && px <= r.x + r.w + pad && py >= r.y - pad && py <= r.y + r.h + pad;
+  if (!r) return false;
+  const rx = Number(r.x) || 0;
+  const ry = Number(r.y) || 0;
+  const rw = Number(r.w) || 0;
+  const rh = Number(r.h) || 0;
+  return px >= rx - pad && px <= rx + rw + pad && py >= ry - pad && py <= ry + rh + pad;
 }
 
 // Robot (tâm px,py) có chạm vật rắn nào không?
-export function findCollision(px, py, solids) {
+// Hỗ trợ cả 2 dạng gọi: findCollision({ x, y }, solids) hoặc findCollision(px, py, solids)
+export function findCollision(arg1, arg2, arg3) {
+  let x, y, solids;
+  if (typeof arg1 === 'object' && arg1 !== null && ('x' in arg1)) {
+    x = Number(arg1.x) || 0;
+    y = Number(arg1.y) || 0;
+    solids = Array.isArray(arg2) ? arg2 : [];
+  } else {
+    x = Number(arg1) || 0;
+    y = Number(arg2) || 0;
+    solids = Array.isArray(arg3) ? arg3 : [];
+  }
+  if (!Array.isArray(solids)) return null;
   for (const s of solids) {
-    if (pointInRect(px, py, s, ROBOT_RADIUS_PX)) return s;
+    if (s && pointInRect(x, y, s, ROBOT_RADIUS_PX)) return s;
   }
   return null;
 }
 
 // Dò tia siêu âm theo hướng robot → trả về khoảng cách (cm) tới vật cản/tường/biên sa bàn gần nhất
-export function raycastDistanceCm(px, py, angleDeg, solids, maxCm = 200) {
+// Hỗ trợ cả 2 dạng gọi: raycastDistanceCm({ x, y, angle }, solids) hoặc raycastDistanceCm(px, py, angleDeg, solids, maxCm)
+export function raycastDistanceCm(arg1, arg2, arg3, arg4, arg5) {
+  let px, py, angleDeg, solids, maxCm;
+  if (typeof arg1 === 'object' && arg1 !== null && ('x' in arg1)) {
+    px = Number(arg1.x) || 0;
+    py = Number(arg1.y) || 0;
+    angleDeg = Number(arg1.angle) || 0;
+    solids = Array.isArray(arg2) ? arg2 : [];
+    maxCm = Number(arg3) || 200;
+  } else {
+    px = Number(arg1) || 0;
+    py = Number(arg2) || 0;
+    angleDeg = Number(arg3) || 0;
+    solids = Array.isArray(arg4) ? arg4 : [];
+    maxCm = Number(arg5) || 200;
+  }
+  if (!Array.isArray(solids)) solids = [];
   const rad = (angleDeg * Math.PI) / 180;
   const sx = px + Math.cos(rad) * SENSOR_OFFSET_PX;
   const sy = py + Math.sin(rad) * SENSOR_OFFSET_PX;
@@ -108,7 +144,7 @@ export function raycastDistanceCm(px, py, angleDeg, solids, maxCm = 200) {
       return Math.max(1, Math.round(d / PX_PER_CM));
     }
     for (const s of solids) {
-      if (pointInRect(x, y, s)) return Math.max(1, Math.round(d / PX_PER_CM));
+      if (s && pointInRect(x, y, s)) return Math.max(1, Math.round(d / PX_PER_CM));
     }
   }
   return maxCm;
@@ -166,7 +202,18 @@ export function sampleFloorColor(floorCanvas, x, y) {
   }
 }
 
-export function sensorPoint(px, py, angleDeg) {
+// Tọa độ cảm biến đặt ở mũi robot (hỗ trợ cả dạng object {x, y, angle} và 3 tham số số)
+export function sensorPoint(arg1, arg2, arg3) {
+  let px, py, angleDeg;
+  if (typeof arg1 === 'object' && arg1 !== null && ('x' in arg1)) {
+    px = Number(arg1.x) || 0;
+    py = Number(arg1.y) || 0;
+    angleDeg = Number(arg1.angle) || 0;
+  } else {
+    px = Number(arg1) || 0;
+    py = Number(arg2) || 0;
+    angleDeg = Number(arg3) || 0;
+  }
   const rad = (angleDeg * Math.PI) / 180;
   return { x: px + Math.cos(rad) * SENSOR_OFFSET_PX, y: py + Math.sin(rad) * SENSOR_OFFSET_PX };
 }

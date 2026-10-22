@@ -1226,20 +1226,26 @@ export default function App() {
 
   // Cảm biến thời gian thực: dùng snapshot mặt sàn từ Canvas 2D và tia siêu âm raycast theo góc xe
   const computeLiveArenaSensors = (px, py, angleDeg) => {
-    const solids = getSolids(mapType, arenaConfig);
-    const poseObj = { x: px, y: py, angle: angleDeg };
-    const minCm = raycastDistanceCm(poseObj, solids);
+    const solids = getSolids(mapType, arenaConfig) || [];
+    const minCm = raycastDistanceCm(px, py, angleDeg, solids);
 
     const sPt = sensorPoint(px, py, angleDeg);
     let detectedColor = null;
     if (floorCanvasRef.current) {
-      const sampled = sampleFloorColor(floorCanvasRef.current, sPt.x, sPt.y);
-      detectedColor = {
-        color: sampled.color,
-        reflection: sampled.reflection,
-        rawRgb: sampled.rawRgb
-      };
-    } else if (arenaConfig?.colorPatches?.length) {
+      try {
+        const sampled = sampleFloorColor(floorCanvasRef.current, sPt.x, sPt.y);
+        if (sampled && sampled.color) {
+          detectedColor = {
+            color: sampled.color,
+            reflection: sampled.reflection,
+            rawRgb: sampled.rawRgb
+          };
+        }
+      } catch (err) {
+        // Canvas context read fallback
+      }
+    }
+    if (!detectedColor && arenaConfig?.colorPatches?.length) {
       for (const cp of arenaConfig.colorPatches) {
         if (
           sPt.x >= cp.x - 4 &&
@@ -1255,6 +1261,9 @@ export default function App() {
           break;
         }
       }
+    }
+    if (!detectedColor) {
+      detectedColor = { color: 'WHITE', reflection: 95 };
     }
 
     return { distanceCm: minCm, detectedColor };
@@ -1304,14 +1313,15 @@ export default function App() {
 
       case 'stop_on_color': {
         const live = computeLiveArenaSensors(finalPose.x, finalPose.y, finalPose.angle);
-        const col = live.detectedColor?.color;
-        const ref = live.detectedColor?.reflection;
-        const isTarget = col === 'RED' || col === 'BLACK' || ref < 25;
+        const col = String(live.detectedColor?.color || '').toUpperCase();
+        const ref = live.detectedColor?.reflection ?? 50;
+        const targetColor = String(currentLesson.winParams?.color || 'GREEN').toUpperCase();
+        const isTarget = col === targetColor || (targetColor === 'BLACK' && (col === 'BLACK' || ref < 25));
         passed = isTarget;
         reason = passed
           ? `Cảm biến màu đã nhận diện vạch màu (${col}) và robot đã dừng thành công!`
-          : `Robot dừng ngoài vạch màu (màu hiện tại: ${col || 'WHITE'}).`;
-        criteriaResults.push({ label: 'Dừng đúng trên vạch màu chỉ định', passed: isTarget });
+          : `Robot dừng ngoài vạch màu chỉ định ${targetColor} (màu hiện tại: ${col || 'WHITE'}).`;
+        criteriaResults.push({ label: `Dừng đúng trên vạch màu ${targetColor}`, passed: isTarget });
         break;
       }
 
@@ -1366,81 +1376,89 @@ export default function App() {
 
   // Đánh giá biểu thức điều kiện Boolean (< >) khi chạy if / if-else / wait-until / repeat-until
   const evaluateBooleanCondition = (condBlock, fallbackParams, pose) => {
-    const live = computeLiveArenaSensors(pose.x, pose.y, pose.angle);
-    const curColor = live.detectedColor?.color || telemetry.colorSensor.color;
-    const curRef = live.detectedColor?.reflection ?? telemetry.colorSensor.reflection;
-    const curDist = live.distanceCm ?? pose.distanceCm;
+    try {
+      const live = computeLiveArenaSensors(pose.x, pose.y, pose.angle);
+      const curColor = String(live.detectedColor?.color || telemetry.colorSensor?.color || 'WHITE').toUpperCase();
+      const curRef = live.detectedColor?.reflection ?? telemetry.colorSensor?.reflection ?? 95;
+      const curDist = live.distanceCm ?? pose.distanceCm ?? 95;
 
-    if (!condBlock) {
-      if (fallbackParams?.condition === 'closer than' || fallbackParams?.value !== undefined) {
-        return curDist <= Number(fallbackParams.value ?? 25);
-      }
-      if (fallbackParams?.color) {
-        return curColor === fallbackParams.color;
-      }
-      return true;
-    }
-
-    const cp = condBlock.params || {};
-    switch (condBlock.type) {
-      case 'sensor_is_color':
-        return curColor === (cp.color || 'RED');
-      case 'sensor_is_reflection': {
-        const target = Number(cp.value ?? 50);
-        if (cp.comp === '>') return curRef > target;
-        if (cp.comp === '=') return curRef === target;
-        return curRef < target;
-      }
-      case 'sensor_is_pressed':
-        return cp.state === 'released'
-          ? !telemetry.forceSensor.pressed
-          : telemetry.forceSensor.pressed;
-      case 'sensor_is_closer_than': {
-        const thresh = Number(cp.value ?? 25);
-        return cp.comp === 'farther than' ? curDist > thresh : curDist <= thresh;
-      }
-      case 'op_lt':
-        return Number(cp.a ?? 0) < Number(cp.b ?? 100);
-      case 'op_eq':
-        return String(cp.a ?? 0) === String(cp.b ?? 100);
-      case 'op_gt':
-        return Number(cp.a ?? 0) > Number(cp.b ?? 100);
-      case 'op_not':
-        return false;
-      default:
+      if (!condBlock) {
+        if (fallbackParams?.condition === 'closer than' || fallbackParams?.value !== undefined) {
+          return curDist <= Number(fallbackParams.value ?? 25);
+        }
+        if (fallbackParams?.color) {
+          return curColor === String(fallbackParams.color).toUpperCase();
+        }
         return true;
+      }
+
+      const cp = condBlock.params || {};
+      switch (condBlock.type) {
+        case 'sensor_is_color': {
+          const targetColor = String(cp.color || 'RED').toUpperCase();
+          return curColor === targetColor;
+        }
+        case 'sensor_is_reflection': {
+          const target = Number(cp.value ?? 50);
+          if (cp.comp === '>') return curRef > target;
+          if (cp.comp === '=') return curRef === target;
+          return curRef < target;
+        }
+        case 'sensor_is_pressed':
+          return cp.state === 'released'
+            ? !telemetry.forceSensor?.pressed
+            : !!telemetry.forceSensor?.pressed;
+        case 'sensor_is_closer_than': {
+          const thresh = Number(cp.value ?? 25);
+          return cp.comp === 'farther than' ? curDist > thresh : curDist <= thresh;
+        }
+        case 'op_lt':
+          return Number(cp.a ?? 0) < Number(cp.b ?? 100);
+        case 'op_eq':
+          return String(cp.a ?? 0) === String(cp.b ?? 100);
+        case 'op_gt':
+          return Number(cp.a ?? 0) > Number(cp.b ?? 100);
+        case 'op_not':
+          return false;
+        default:
+          return true;
+      }
+    } catch (e) {
+      console.warn('Error in evaluateBooleanCondition:', e);
+      return false;
     }
   };
 
   const runProgram = async () => {
     if (isRunning) return;
-    stopFlagRef.current = false;
-    setIsRunning(true);
-    setMissionCompleted(false);
-    setGradingResult(null);
+    try {
+      stopFlagRef.current = false;
+      setIsRunning(true);
+      setMissionCompleted(false);
+      setGradingResult(null);
 
-    // Tự động khôi phục tư thế xuất phát ban đầu của Robot trước khi chạy để kết quả luôn nhất quán
-    const sp = getStartPoseForMap(mapType, arenaConfig);
-    let pose = {
-      x: sp.x,
-      y: sp.y,
-      angle: sp.angle,
-      distanceCm: 95,
-      armAngle: 35,
-      gripperClosed: false,
-      cargoGrabbed: false,
-      trail: [{ x: sp.x, y: sp.y }]
-    };
-    setRobotPose({ ...pose });
-    setTelemetry((prev) => ({
-      ...prev,
-      gyroYaw: sp.angle,
-      displayMessage: '',
-      distanceSensor: { cm: 95 }
-    }));
-    await sleep(120);
+      // Tự động khôi phục tư thế xuất phát ban đầu của Robot trước khi chạy để kết quả luôn nhất quán
+      const sp = getStartPoseForMap(mapType, arenaConfig);
+      let pose = {
+        x: sp.x,
+        y: sp.y,
+        angle: sp.angle,
+        distanceCm: 95,
+        armAngle: 35,
+        gripperClosed: false,
+        cargoGrabbed: false,
+        trail: [{ x: sp.x, y: sp.y }]
+      };
+      setRobotPose({ ...pose });
+      setTelemetry((prev) => ({
+        ...prev,
+        gyroYaw: sp.angle,
+        displayMessage: '',
+        distanceSensor: { cm: 95 }
+      }));
+      await sleep(120);
 
-    setStatusLog('▶ Đang chạy chương trình SPIKE™ Prime trên Sa bàn...');
+      setStatusLog('▶ Đang chạy chương trình SPIKE™ Prime trên Sa bàn...');
 
     const solids = getSolids(mapType, arenaConfig);
     let collisionOccurred = false;
@@ -2113,10 +2131,6 @@ export default function App() {
 
     await executeBlockList(blocks);
 
-    isContinuousDrivingRef.current = { moving: false, direction: 0, steering: 0 };
-    setActiveBlockId(null);
-    setIsRunning(false);
-
     if (!stopFlagRef.current || blocks.some((b) => b.type === 'stop_all_cap')) {
       const evalRes = evaluateMissionSuccess(pose, pose.trail, collisionOccurred);
       setGradingResult({
@@ -2137,7 +2151,15 @@ export default function App() {
         setStatusLog(`❌ CHƯA ĐẠT: ${evalRes.reason}`);
       }
     }
-  };
+  } catch (err) {
+    console.error("Runtime execution error:", err);
+    setStatusLog(`⚠️ Lỗi khi chạy chương trình: ${err.message}`);
+  } finally {
+    isContinuousDrivingRef.current = { moving: false, direction: 0, steering: 0 };
+    setActiveBlockId(null);
+    setIsRunning(false);
+  }
+};
 
   const stopProgram = () => {
     stopFlagRef.current = true;
