@@ -39,7 +39,7 @@ export default function UserGuideModal({ isOpen, onClose }) {
                 </span>
               </div>
               <p className="text-[11px] text-slate-400">
-                Thiết kế bởi thầy <strong className="text-amber-400 font-semibold">Hoàng Ngọc Cảnh</strong> — THCS & THPT Đinh Thiện Lý
+                Thiết kế bởi thầy <strong className="text-amber-400 font-semibold">Hoàng Ngọc Cảnh</strong> — <span className="hidden sm:inline">THCS & THPT Đinh Thiện Lý</span><span className="sm:hidden">LSTS</span>
               </p>
             </div>
           </div>

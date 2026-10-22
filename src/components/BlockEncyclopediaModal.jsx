@@ -151,7 +151,7 @@ export default function BlockEncyclopediaModal({
                 📘 Học Viện LEGO® SPIKE™ Prime — Kỹ Thuật Điều Khiển & Từ Điển Khối Lệnh
               </h3>
               <p className="text-[11px] text-slate-400">
-                Tài liệu nền tảng dành cho Học sinh & Đội tuyển Robotics FLL / WRO • Thiết kế bởi thầy Hoàng Ngọc Cảnh (THCS & THPT Đinh Thiện Lý)
+                Tài liệu nền tảng dành cho Học sinh & Đội tuyển Robotics FLL / WRO • Thiết kế bởi thầy Hoàng Ngọc Cảnh (<span className="hidden sm:inline">THCS & THPT Đinh Thiện Lý</span><span className="sm:hidden">LSTS</span>)
               </p>
             </div>
           </div>

@@ -3106,10 +3106,10 @@ export default function App() {
 
         <div className="flex items-center gap-1.5 shrink-0">
           {/* GHI DẤU BẢN QUYỀN TRÊN THANH HEADER */}
-          <span className="hidden xl:inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-200/80 text-[10px] font-bold text-slate-700 border border-slate-300">
+          <span className="hidden lg:inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-200/80 text-[10px] font-bold text-slate-700 border border-slate-300">
             <span>Thiết kế bởi thầy</span>
             <strong className="text-slate-900">Hoàng Ngọc Cảnh</strong>
-            <span>— Đinh Thiện Lý</span>
+            <span>— <span className="hidden 2xl:inline">THCS & THPT Đinh Thiện Lý</span><span className="2xl:hidden">LSTS</span></span>
           </span>
 
           <button
@@ -4142,7 +4142,9 @@ export default function App() {
               <div className="text-xs font-semibold text-slate-600 flex items-center gap-1.5 truncate pr-2">
                 <span className="inline-block w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" />
                 <span className="text-[11px] text-slate-700 font-bold truncate">
-                  Thiết kế bởi thầy Hoàng Ngọc Cảnh — Giáo viên trường THCS & THPT Đinh Thiện Lý
+                  <span>Thiết kế bởi thầy Hoàng Ngọc Cảnh — </span>
+                  <span className="hidden 2xl:inline">Giáo viên trường THCS & THPT Đinh Thiện Lý</span>
+                  <span className="2xl:hidden">LSTS</span>
                 </span>
               </div>
 
