@@ -2997,8 +2997,8 @@ export default function App() {
       )}
 
       {/* 1. TOP PROJECT TAB BAR */}
-      <header className="h-12 bg-[#eef0f3] border-b border-slate-300 px-3 flex items-center justify-between shrink-0 overflow-hidden whitespace-nowrap">
-        <div className="flex items-center gap-2 min-w-0">
+      <header className="h-12 bg-[#eef0f3] border-b border-slate-300 px-3 flex items-center justify-between shrink-0 overflow-x-auto whitespace-nowrap gap-2">
+        <div className="flex items-center gap-1.5 shrink-0">
           <button
             onClick={() => handleSelectLesson(missions[0])}
             title="Home"
@@ -3008,16 +3008,16 @@ export default function App() {
           </button>
 
           {/* CHỌN NHIỆM VỤ THEO LỘ TRÌNH 4 NHÁNH (NỀN TẢNG → ỨNG DỤNG → LUYỆN THI → TỰ DO) */}
-          <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full border border-slate-300 shadow-sm shrink-0">
-            <span className="w-2.5 h-2.5 rounded-full bg-yellow-400" />
-            <BookOpen className="w-3.5 h-3.5 text-slate-500" />
+          <div className="flex items-center gap-1.5 bg-white px-2.5 py-1.5 rounded-full border border-slate-300 shadow-sm shrink-0">
+            <span className="w-2 h-2 rounded-full bg-yellow-400 shrink-0" />
+            <BookOpen className="w-3.5 h-3.5 text-slate-500 shrink-0" />
             <select
               value={currentLessonId}
               onChange={(e) => {
                 const found = missions.find((l) => l.id === e.target.value);
                 if (found) handleSelectLesson(found);
               }}
-              className="bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer pr-1 max-w-[280px]"
+              className="bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer pr-1 max-w-[170px] sm:max-w-[210px] truncate"
             >
               {LEARNING_TRACKS.map((track) => {
                 const trackMissions = missions.filter((m) => (m.track || 'mission') === track.id);
@@ -3045,7 +3045,7 @@ export default function App() {
                 setStatusLog('🎒 Đã chuyển về Chế độ Học sinh.');
               }
             }}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-extrabold border shadow-sm transition shrink-0 ${
+            className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-extrabold border shadow-sm transition shrink-0 ${
               roleMode === 'teacher'
                 ? 'bg-purple-600 text-white border-purple-500 shadow-purple-200'
                 : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-300'
@@ -3068,30 +3068,32 @@ export default function App() {
           {/* NÚT MỞ SỔ TAY HƯỚNG DẪN SỬ DỤNG NHÚNG TRỰC TIẾP */}
           <button
             onClick={() => setShowUserGuideModal(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold shadow-sm transition shrink-0"
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold shadow-sm transition shrink-0"
             title="Xem Sổ tay Hướng Dẫn Sử Dụng nền tảng LEGO SPIKE Prime Studio (Tài liệu HTML nhúng trực tiếp)"
           >
             <HelpCircle className="w-3.5 h-3.5" />
-            <span>📖 Hướng Dẫn Sử Dụng</span>
+            <span className="hidden sm:inline">Hướng Dẫn</span>
+            <span className="sm:hidden">HDSD</span>
           </button>
 
           {/* NÚT MỞ SỔ TAY KHỐI LỆNH & 6 KỸ THUẬT LẬP TRÌNH FLL/WRO */}
           <button
             onClick={() => setShowEncyclopediaModal(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-extrabold shadow-sm transition shrink-0"
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-extrabold shadow-sm transition shrink-0"
             title="Tra cứu 6 kỹ thuật điều khiển FLL/WRO và Bách khoa toàn thư khối lệnh SPIKE Prime"
           >
             <Compass className="w-3.5 h-3.5" />
-            <span>Sổ Tay Khối Lệnh (FLL/WRO)</span>
+            <span className="hidden md:inline">Sổ Tay (FLL/WRO)</span>
+            <span className="md:hidden">Sổ Tay</span>
           </button>
 
           <button
             onClick={() => setShowMissionStudioModal(true)}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold shadow-sm transition shrink-0"
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold shadow-sm transition shrink-0"
             title="Mở trình Quản lý & Thiết kế Nhiệm vụ / Sa bàn mới"
           >
             <Settings2 className="w-3.5 h-3.5" />
-            🎯 Thiết Kế Nhiệm Vụ ({missions.length})
+            <span>Nhiệm Vụ ({missions.length})</span>
           </button>
 
           <button
@@ -3100,45 +3102,39 @@ export default function App() {
             title="Tạo nhanh 1 nhiệm vụ và sa bàn trống mới"
           >
             <Plus className="w-3.5 h-3.5" />
-            Tạo Bài Mới
+            <span>+ Bài Mới</span>
           </button>
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
-          {/* GHI DẤU BẢN QUYỀN TRÊN THANH HEADER */}
-          <span className="hidden lg:inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-200/80 text-[10px] font-bold text-slate-700 border border-slate-300">
-            <span>Thiết kế bởi thầy</span>
-            <strong className="text-slate-900">Hoàng Ngọc Cảnh</strong>
-            <span>— <span className="hidden 2xl:inline">THCS & THPT Đinh Thiện Lý</span><span className="2xl:hidden">LSTS</span></span>
-          </span>
-
           <button
             onClick={handleSaveCurrentStateToMission}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-white hover:bg-amber-50 text-slate-800 border border-amber-400 text-xs font-bold shadow-sm transition"
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-white hover:bg-amber-50 text-slate-800 border border-amber-400 text-xs font-bold shadow-sm transition shrink-0"
             title="Lưu Sa bàn tự vẽ và chồng lệnh hiện tại vào nhiệm vụ đang mở"
           >
             <Save className="w-3.5 h-3.5 text-amber-600" />
-            Lưu Sa Bàn & Code
+            <span className="hidden sm:inline">Lưu Sa Bàn & Code</span>
+            <span className="sm:hidden">Lưu</span>
           </button>
 
           <button
             onClick={() => setShowExtensionsModal(true)}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-sm transition"
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-sm transition shrink-0"
           >
             <Plus className="w-3.5 h-3.5" />
-            Extensions ({enabledExtensions.length})
+            <span>Extensions ({enabledExtensions.length})</span>
           </button>
 
           <button
             onClick={() => setRightRedZoneTab('builder')}
-            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-bold border shadow-sm transition ${
+            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-bold border shadow-sm transition shrink-0 ${
               rightRedZoneTab === 'builder'
                 ? 'bg-pink-600 text-white border-pink-600'
                 : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-300'
             }`}
           >
             <Cog className="w-3.5 h-3.5" />
-            5 Cơ Cấu
+            <span>5 Cơ Cấu</span>
           </button>
         </div>
       </header>
@@ -3689,59 +3685,61 @@ export default function App() {
           >
             <div className="flex-1 min-h-0 bg-white rounded-2xl border-2 border-rose-500 shadow-[0_8px_30px_rgba(244,63,94,0.12)] flex flex-col overflow-hidden">
               {/* Thanh Tab cố định chiều cao h-11 shrink-0 không bao giờ xuống dòng */}
-              <div className="h-11 shrink-0 px-3 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800 overflow-hidden whitespace-nowrap">
-                <div className="flex items-center gap-1">
+              <div className="h-11 shrink-0 px-2 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800 overflow-x-auto whitespace-nowrap gap-1">
+                <div className="flex items-center gap-1 shrink-0">
                   <button
                     onClick={() => setRightRedZoneTab('arena')}
-                    className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-extrabold transition ${
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-extrabold transition shrink-0 ${
                       rightRedZoneTab === 'arena'
                         ? 'bg-rose-500 text-white shadow'
                         : 'text-slate-300 hover:bg-slate-800'
                     }`}
                   >
-                    <span>🏁 Sa Bàn Ảo ({simMode})</span>
+                    <span>🏁 Sa Bàn ({simMode})</span>
                   </button>
 
                   <button
                     onClick={() => setRightRedZoneTab('hub')}
-                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition ${
+                    className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold transition shrink-0 ${
                       rightRedZoneTab === 'hub'
                         ? 'bg-yellow-400 text-slate-950 shadow'
                         : 'text-slate-300 hover:bg-slate-800'
                     }`}
+                    title="Bảng điều khiển Bộ não Hub 5x5 & Cảm biến"
                   >
                     <Cpu className="w-3.5 h-3.5" />
-                    Hub & Cảm Biến
+                    <span>Hub</span>
                   </button>
 
                   <button
                     onClick={() => setRightRedZoneTab('python')}
-                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition ${
+                    className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold transition shrink-0 ${
                       rightRedZoneTab === 'python'
                         ? 'bg-cyan-400 text-slate-950 shadow'
                         : 'text-slate-300 hover:bg-slate-800'
                     }`}
+                    title="Mã nguồn Python 3 đồng bộ"
                   >
                     <Code2 className="w-3.5 h-3.5" />
-                    Python Code
+                    <span>Python</span>
                   </button>
 
                   <button
                     onClick={() => setRightRedZoneTab('builder')}
-                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition ${
+                    className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold transition shrink-0 ${
                       rightRedZoneTab === 'builder'
                         ? 'bg-pink-500 text-white shadow'
                         : 'text-slate-300 hover:bg-slate-800'
                     }`}
+                    title="5 Cơ cấu robot SPIKE Prime chính thức"
                   >
                     <Cog className="w-3.5 h-3.5" />
-                    Cơ Cấu & Lắp Ráp
+                    <span>Cơ Cấu</span>
                   </button>
                 </div>
 
-                {/* NÚT CHUYỂN BỐ CỤC: CÂN BẰNG (52%) | MỞ RỘNG (68%) | TOÀN CẢNH (82%) */}
-                <div className="flex items-center gap-1 bg-slate-800 p-0.5 rounded-lg border border-slate-700">
-                  <span className="text-[10px] text-slate-400 font-bold px-1.5 hidden xl:inline">Khung sa bàn:</span>
+                {/* NÚT CHUYỂN BỐ CỤC GỌN GÀNG: 52% | 68% | 82% */}
+                <div className="flex items-center gap-0.5 bg-slate-950 p-0.5 rounded-lg border border-slate-800 shrink-0">
                   <button
                     type="button"
                     onClick={() => setArenaLayoutMode('balanced')}
@@ -3752,7 +3750,7 @@ export default function App() {
                     }`}
                     title="Chế độ Cân Bằng (52% Sa Bàn / 48% Lập Trình)"
                   >
-                    Cân Bằng
+                    52%
                   </button>
                   <button
                     type="button"
@@ -3762,9 +3760,9 @@ export default function App() {
                         ? 'bg-amber-400 text-slate-950 shadow'
                         : 'text-slate-400 hover:text-white'
                     }`}
-                    title="Chế độ Mở Rộng (68% Sa Bàn — Kéo dài sa bàn để có nhiều không gian quan sát lộ trình)"
+                    title="Chế độ Mở Rộng (68% Sa Bàn — Kéo dài sa bàn)"
                   >
-                    Mở Rộng ⛶
+                    ⛶ 68%
                   </button>
                   <button
                     type="button"
@@ -3776,7 +3774,7 @@ export default function App() {
                     }`}
                     title="Chế độ Toàn Cảnh (82% Sa Bàn — Khung sa bàn cực đại)"
                   >
-                    Toàn Cảnh 🖥
+                    🖥 82%
                   </button>
                 </div>
               </div>

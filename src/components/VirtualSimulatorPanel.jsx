@@ -2004,7 +2004,7 @@ export default function VirtualSimulatorPanel({
           <button
             type="button"
             onClick={() => setShowArenaGallery((v) => !v)}
-            className={`inline-flex items-center gap-1 h-7 px-2.5 rounded-lg text-[11px] font-extrabold border transition shrink-0 whitespace-nowrap ${
+            className={`inline-flex items-center gap-1 h-7 px-2 rounded-lg text-[11px] font-extrabold border transition shrink-0 whitespace-nowrap ${
               showArenaGallery
                 ? 'bg-fuchsia-500 text-white border-fuchsia-300'
                 : 'bg-fuchsia-600/20 text-fuchsia-200 border-fuchsia-500/50 hover:bg-fuchsia-600/40'
@@ -2012,14 +2012,14 @@ export default function VirtualSimulatorPanel({
             title="Mở Thư viện 18 Sa bàn: 12 sa bàn 2D và 6 sa bàn 3D"
           >
             <Grid className="w-3.5 h-3.5 shrink-0" />
-            <span>Thư viện Sa bàn (2D: {MAP_2D_OPTIONS.length} | 3D: {SCENE_3D_OPTIONS.length})</span>
+            <span>Thư viện ({MAP_2D_OPTIONS.length + SCENE_3D_OPTIONS.length})</span>
           </button>
 
           {/* MENU CHUNG: CHỌN 1 SA BÀN 2D HOẶC 3D, TỰ ĐỘNG CHUYỂN CHẾ ĐỘ */}
           <select
             value={simMode === '3D' ? scene3DType : mapType}
             onChange={(e) => handleSelectAnyArena(e.target.value)}
-            className={`text-[11px] font-bold h-7 px-2 rounded-lg border focus:outline-none cursor-pointer shrink-0 whitespace-nowrap max-w-[220px] ${
+            className={`text-[11px] font-bold h-7 px-2 rounded-lg border focus:outline-none cursor-pointer shrink-0 whitespace-nowrap max-w-[160px] sm:max-w-[190px] truncate ${
               simMode === '3D'
                 ? 'bg-orange-500/20 text-orange-200 border-orange-500/50'
                 : 'bg-slate-900 text-slate-100 border-slate-700'
@@ -2046,7 +2046,7 @@ export default function VirtualSimulatorPanel({
               <button
                 type="button"
                 onClick={handleToggleRuler}
-                className={`inline-flex items-center gap-1 h-7 px-2.5 rounded-lg text-[11px] font-bold border transition shrink-0 whitespace-nowrap ${
+                className={`inline-flex items-center gap-1 h-7 px-2 rounded-lg text-[11px] font-bold border transition shrink-0 whitespace-nowrap ${
                   isRulerActive
                     ? 'bg-cyan-500 text-slate-950 border-cyan-300 shadow ring-2 ring-cyan-300'
                     : 'bg-cyan-950/60 hover:bg-cyan-900/80 text-cyan-300 border-cyan-500/50'
@@ -2054,7 +2054,7 @@ export default function VirtualSimulatorPanel({
                 title="Bật Thước đo khoảng cách (cm), số vòng quay bánh xe và thước đo góc quay (độ) trực tiếp trên sa bàn"
               >
                 <Ruler className="w-3.5 h-3.5 shrink-0" />
-                <span>{isRulerActive ? '✓ Đóng Thước Đo' : '📐 Thước Đo & Góc'}</span>
+                <span>{isRulerActive ? '✓ Đóng Thước' : '📐 Thước Đo'}</span>
               </button>
 
               <button
@@ -2063,7 +2063,7 @@ export default function VirtualSimulatorPanel({
                   setIsEditingArena((v) => !v);
                   if (!isEditingArena) setIsRulerActive(false);
                 }}
-                className={`inline-flex items-center gap-1 h-7 px-2.5 rounded-lg text-[11px] font-bold border transition shrink-0 whitespace-nowrap ${
+                className={`inline-flex items-center gap-1 h-7 px-2 rounded-lg text-[11px] font-bold border transition shrink-0 whitespace-nowrap ${
                   isEditingArena
                     ? 'bg-amber-400 text-slate-950 border-amber-300 shadow'
                     : 'bg-slate-900 hover:bg-slate-800 text-amber-300 border-amber-500/40'
@@ -2071,7 +2071,7 @@ export default function VirtualSimulatorPanel({
                 title="Bật công cụ tự vẽ đường Line chính xác tại con trỏ chuột, kéo thả Vật cản, Ô Đích, Kiện hàng và vị trí Robot"
               >
                 <Wrench className="w-3.5 h-3.5 shrink-0" />
-                <span>{isEditingArena ? '✓ Đóng Thiết Kế' : '🛠 Thiết Kế Sa Bàn'}</span>
+                <span>{isEditingArena ? '✓ Đóng Vẽ' : '🛠 Vẽ Sa Bàn'}</span>
               </button>
             </>
           )}
