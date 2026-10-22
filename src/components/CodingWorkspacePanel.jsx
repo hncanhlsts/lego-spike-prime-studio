@@ -1225,7 +1225,7 @@ export default function CodingWorkspacePanel({
                     key={block.id}
                     onMouseEnter={() => setHoveredBlockDesc(def)}
                     className={`${shapeClass} px-3.5 py-2.5 text-white transition-all border border-black/20 ${
-                      isCurrent ? 'ring-4 ring-yellow-300 z-10 brightness-110' : ''
+                      isCurrent ? 'ring-4 ring-yellow-400 shadow-[0_0_20px_rgba(250,204,21,0.9)] z-20 brightness-110 scale-[1.01]' : ''
                     }`}
                     style={{ backgroundColor: def.color }}
                   >

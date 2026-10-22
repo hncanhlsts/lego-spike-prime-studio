@@ -2562,7 +2562,7 @@ export default function SpikeBlockItem({
           : isEmbeddedBoolean
           ? 'cursor-default shadow-sm'
           : 'cursor-grab active:cursor-grabbing shadow-md'
-      } ${isCurrent ? 'ring-4 ring-yellow-300 z-10 brightness-110' : ''} ${
+      } ${isCurrent ? 'ring-4 ring-yellow-400 shadow-[0_0_20px_rgba(250,204,21,0.9)] z-20 brightness-110 scale-[1.01]' : ''} ${
         isDragging ? 'opacity-35 scale-95 ring-2 ring-dashed ring-white' : ''
       }`}
       style={{ backgroundColor: def.color, touchAction: 'none' }}

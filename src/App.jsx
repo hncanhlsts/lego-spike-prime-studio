@@ -39,7 +39,10 @@ import {
   Award,
   ListChecks,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Footprints,
+  StepForward,
+  Gauge
 } from 'lucide-react';
 import SpikeBlockItem, { SpikeWheelBadge } from './components/SpikeBlockItem';
 import VirtualSimulatorPanel, {
@@ -337,6 +340,18 @@ export default function App() {
   );
 
   const stopFlagRef = useRef(false);
+  const [simSpeed, setSimSpeed] = useState(1);
+  const simSpeedRef = useRef(1);
+  const [isStepMode, setIsStepMode] = useState(false);
+  const isStepModeRef = useRef(false);
+  const [isWaitingForStep, setIsWaitingForStep] = useState(false);
+  const stepResolverRef = useRef(null);
+
+  const changeSimSpeed = (newSpeed) => {
+    simSpeedRef.current = newSpeed;
+    setSimSpeed(newSpeed);
+    setStatusLog(`⚡ Đã chỉnh tốc độ mô phỏng sang: ${newSpeed}x`);
+  };
   const bleManagerRef = useRef(null);
   const paletteContainerRef = useRef(null);
   const categorySectionRefs = useRef({});
@@ -1203,7 +1218,10 @@ export default function App() {
     });
   };
 
-  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const sleep = (ms) =>
+    new Promise((r) =>
+      setTimeout(r, Math.max(5, Math.round(ms / (simSpeedRef.current || 1))))
+    );
 
   const playBeepSound = (midiNote = 60, durationSec = 0.35) => {
     try {
@@ -1506,6 +1524,19 @@ export default function App() {
       for (const block of blockList || []) {
         if (stopFlagRef.current) break;
         setActiveBlockId(block.id);
+
+        if (isStepModeRef.current) {
+          setIsWaitingForStep(true);
+          const def = BLOCK_DEFINITIONS[block.type];
+          const bLabel = def ? `${def.nameEn} (${def.nameVi})` : block.type;
+          setStatusLog(`🐾 [Bước ${block.id}]: Đang dừng ở khối [${bLabel}]. Nhấn "Bước tiếp ▶" để thực thi.`);
+          await new Promise((resolve) => {
+            stepResolverRef.current = resolve;
+          });
+          setIsWaitingForStep(false);
+          if (stopFlagRef.current) break;
+        }
+
         const p = block.params || {};
 
         switch (block.type) {
@@ -2158,13 +2189,65 @@ export default function App() {
     isContinuousDrivingRef.current = { moving: false, direction: 0, steering: 0 };
     setActiveBlockId(null);
     setIsRunning(false);
+    setIsStepMode(false);
+    isStepModeRef.current = false;
+    setIsWaitingForStep(false);
+    stepResolverRef.current = null;
   }
 };
 
+  const handleStepClick = async () => {
+    if (!isRunning) {
+      isStepModeRef.current = true;
+      setIsStepMode(true);
+      runProgram();
+    } else if (isWaitingForStep) {
+      if (stepResolverRef.current) {
+        const resolve = stepResolverRef.current;
+        stepResolverRef.current = null;
+        resolve();
+      }
+    } else {
+      isStepModeRef.current = true;
+      setIsStepMode(true);
+      setStatusLog('🐾 Đã chuyển sang chế độ Từng bước. Robot sẽ dừng ở khối tiếp theo.');
+    }
+  };
+
+  const handlePlayClick = () => {
+    if (isRunning) {
+      if (isStepModeRef.current || isWaitingForStep) {
+        isStepModeRef.current = false;
+        setIsStepMode(false);
+        setIsWaitingForStep(false);
+        setStatusLog('▶ Tiếp tục chạy liên tục chương trình...');
+        if (stepResolverRef.current) {
+          const resolve = stepResolverRef.current;
+          stepResolverRef.current = null;
+          resolve();
+        }
+      }
+    } else {
+      isStepModeRef.current = false;
+      setIsStepMode(false);
+      setIsWaitingForStep(false);
+      runProgram();
+    }
+  };
+
   const stopProgram = () => {
     stopFlagRef.current = true;
-    setIsRunning(false);
+    isStepModeRef.current = false;
+    setIsStepMode(false);
+    setIsWaitingForStep(false);
+    if (stepResolverRef.current) {
+      const resolve = stepResolverRef.current;
+      stepResolverRef.current = null;
+      resolve();
+    }
+    isContinuousDrivingRef.current = { moving: false, direction: 0, steering: 0 };
     setActiveBlockId(null);
+    setIsRunning(false);
     setStatusLog('⏹ Đã dừng chương trình.');
   };
 
@@ -3893,7 +3976,52 @@ export default function App() {
                 </span>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                {/* Tốc độ mô phỏng 0.5x, 1x, 2x */}
+                <div className="flex items-center bg-white px-1 py-0.5 rounded-xl border border-slate-300 shadow-sm">
+                  <span className="text-[10px] text-slate-400 font-bold px-1 flex items-center gap-0.5" title="Tốc độ mô phỏng">
+                    <Gauge className="w-3.5 h-3.5 text-slate-500" />
+                  </span>
+                  {[0.5, 1, 2].map((spd) => (
+                    <button
+                      key={spd}
+                      onClick={() => changeSimSpeed(spd)}
+                      title={`Tốc độ mô phỏng: ${spd}x`}
+                      className={`px-1.5 py-0.5 rounded-lg text-[10px] font-extrabold transition ${
+                        simSpeed === spd
+                          ? 'bg-amber-400 text-slate-950 shadow-sm'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                      }`}
+                    >
+                      {spd}x
+                    </button>
+                  ))}
+                </div>
+
+                {/* Nút Chạy từng bước (Step-by-Step Debugger) */}
+                <button
+                  onClick={handleStepClick}
+                  title={
+                    !isRunning
+                      ? 'Bắt đầu Chạy từng bước (Step Debugger)'
+                      : isWaitingForStep
+                      ? 'Thực thi khối tiếp theo (Next Step)'
+                      : 'Tạm dừng & Chuyển sang chế độ từng bước'
+                  }
+                  className={`h-11 px-3 rounded-full flex items-center gap-1.5 shadow-md font-extrabold text-xs transition border ${
+                    isWaitingForStep
+                      ? 'bg-blue-600 text-white hover:bg-blue-500 ring-4 ring-blue-200 animate-pulse border-blue-400 scale-105'
+                      : isStepMode
+                      ? 'bg-blue-500 text-white hover:bg-blue-400 border-blue-400'
+                      : 'bg-white hover:bg-blue-50 text-blue-700 border-slate-300 hover:border-blue-400'
+                  }`}
+                >
+                  <Footprints className="w-4 h-4 shrink-0" />
+                  <span className="hidden sm:inline">
+                    {isWaitingForStep ? 'Bước tiếp ▶' : isStepMode ? 'Đang bước...' : 'Từng bước'}
+                  </span>
+                </button>
+
                 <div
                   onClick={() => setRightRedZoneTab('hub')}
                   title="5x5 Light Matrix & Program Slot"
@@ -3916,12 +4044,20 @@ export default function App() {
                 </button>
 
                 <button
-                  onClick={runProgram}
-                  disabled={isRunning}
-                  title="Chạy chương trình (Run Program)"
+                  onClick={handlePlayClick}
+                  disabled={isRunning && !isWaitingForStep && !isStepMode}
+                  title={
+                    isRunning && (isWaitingForStep || isStepMode)
+                      ? 'Tiếp tục chạy liên tục (Resume Normal Run)'
+                      : isRunning
+                      ? 'Đang chạy mô phỏng...'
+                      : 'Chạy chương trình (Run Program)'
+                  }
                   className={`w-12 h-12 rounded-full flex items-center justify-center shadow-lg transition ${
-                    isRunning
-                      ? 'bg-amber-400 text-slate-950 animate-pulse'
+                    isRunning && !isWaitingForStep && !isStepMode
+                      ? 'bg-amber-400 text-slate-950 animate-pulse cursor-not-allowed opacity-90'
+                      : isRunning && (isWaitingForStep || isStepMode)
+                      ? 'bg-emerald-500 hover:bg-emerald-400 text-white animate-bounce ring-4 ring-emerald-200'
                       : 'bg-[#FFD500] hover:bg-yellow-400 text-slate-900 hover:scale-105 border-2 border-white'
                   }`}
                 >
