@@ -33,6 +33,7 @@ export const PRESET_SOLIDS = {
 
 // Ô đích được VẼ SẴN trong từng sa bàn mẫu (có id để dùng cho điều kiện "đi qua theo thứ tự")
 export const PRESET_GOALS = {
+  line_track: [{ id: 'line_finish', x: 345, y: 100, w: 70, h: 65, label: 'FINISH' }],
   maze: [{ id: 'maze_goal', x: 210, y: 185, w: 70, h: 55, label: 'GOAL' }],
   slalom_obstacles: [{ id: 'slalom_goal', x: 445, y: 95, w: 58, h: 75, label: 'GOAL' }],
   fll_challenge: [

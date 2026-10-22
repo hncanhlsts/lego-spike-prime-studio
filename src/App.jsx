@@ -1447,6 +1447,42 @@ export default function App() {
     let moveSpeed = 50;
     let motorSpeeds = { A: 75, B: 75, C: 75, D: 75, E: 75, F: 75 };
     isContinuousDrivingRef.current = { moving: false, direction: 1, steering: 0 };
+    let physicsStepsCount = 0;
+
+    const stepContinuousMovement = (customSteering = null, factor = 1.0) => {
+      if (!isContinuousDrivingRef.current.moving && customSteering === null) return false;
+      physicsStepsCount += 1;
+      const steer = customSteering !== null ? customSteering : isContinuousDrivingRef.current.steering;
+      const dir = isContinuousDrivingRef.current.direction || 1;
+
+      if (steer !== 0) {
+        pose.angle = Math.round((pose.angle + steer * 0.1 * factor + 360) % 360);
+      }
+      const rad = (pose.angle * Math.PI) / 180;
+      const stepDist = (moveSpeed / 100) * 3.6 * dir * factor;
+      const nx = Math.max(25, Math.min(495, pose.x + Math.cos(rad) * stepDist));
+      const ny = Math.max(25, Math.min(240, pose.y + Math.sin(rad) * stepDist));
+
+      const col = findCollision({ x: nx, y: ny }, solids);
+      if (col) {
+        collisionOccurred = true;
+        setStatusLog(`⚠️ Robot va chạm vào ${col.kind === 'wall' ? 'tường chắn' : 'vật cản'}!`);
+        return true;
+      }
+      pose.x = nx;
+      pose.y = ny;
+      const live = computeLiveArenaSensors(pose.x, pose.y, pose.angle);
+      pose.distanceCm = live.distanceCm;
+      pose.trail = [...pose.trail, { x: pose.x, y: pose.y }];
+      setRobotPose({ ...pose });
+      setTelemetry((prev) => ({
+        ...prev,
+        gyroYaw: pose.angle,
+        distanceSensor: { cm: pose.distanceCm },
+        colorSensor: live.detectedColor || prev.colorSensor
+      }));
+      return false;
+    };
 
     const executeBlockList = async (blockList) => {
       for (const block of blockList || []) {
@@ -1639,15 +1675,19 @@ export default function App() {
             const sign = p.direction === 'backward' ? -1 : 1;
             isContinuousDrivingRef.current = { moving: true, direction: sign, steering: 0 };
             setStatusLog(`start moving ${p.direction === 'backward' ? '↓' : '↑'}`);
-            await sleep(60);
+            stepContinuousMovement(0, 1.0);
+            await sleep(40);
             break;
           }
 
           case 'start_moving_steering': {
             const steer = Number(p.steering ?? 30);
             isContinuousDrivingRef.current = { moving: true, direction: 1, steering: steer };
-            setStatusLog(`start moving steering (${steer})`);
-            await sleep(60);
+            setStatusLog(
+              `start moving steering (${steer > 0 ? `right: ${steer}` : steer < 0 ? `left: ${Math.abs(steer)}` : '0'})`
+            );
+            stepContinuousMovement(steer, 1.0);
+            await sleep(40);
             break;
           }
 
@@ -1789,11 +1829,19 @@ export default function App() {
                 (block.children.length === 1 && block.children[0].id === 'b2_ifelse'));
 
             if (hasCustomChildren && !isDefaultLineFollowDemo) {
-              const safeLoops = Math.min(50, times);
+              const safeLoops = Math.min(500, times);
               for (let loopIdx = 0; loopIdx < safeLoops; loopIdx++) {
                 if (stopFlagRef.current) break;
-                setStatusLog(`repeat (${loopIdx + 1}/${safeLoops})...`);
+                if (loopIdx % 10 === 0 || loopIdx <= 3) {
+                  setStatusLog(`repeat (${loopIdx + 1}/${safeLoops})...`);
+                }
+                const stepsBefore = physicsStepsCount;
                 await executeBlockList(block.children);
+                if (isContinuousDrivingRef.current.moving && physicsStepsCount === stepsBefore) {
+                  const hit = stepContinuousMovement(null, 1.0);
+                  if (hit) break;
+                  await sleep(25);
+                }
               }
             } else {
               setStatusLog(`repeat (${p.times}): Đang dò line đen bằng Cảm biến màu D...`);
@@ -1876,14 +1924,28 @@ export default function App() {
           }
 
           case 'forever_loop': {
-            if (Array.isArray(block.children) && block.children.length > 0) {
-              for (let loopIdx = 0; loopIdx < 35; loopIdx++) {
-                if (stopFlagRef.current) break;
-                setStatusLog(`forever (vòng #${loopIdx + 1})...`);
-                await executeBlockList(block.children);
+            let loopIdx = 0;
+            const maxLoops = 2000;
+            while (!stopFlagRef.current && loopIdx < maxLoops) {
+              loopIdx++;
+              if (loopIdx % 10 === 0 || loopIdx <= 3) {
+                setStatusLog(`forever (vòng #${loopIdx})...`);
               }
-            } else {
-              await sleep(300);
+              if (Array.isArray(block.children) && block.children.length > 0) {
+                const stepsBefore = physicsStepsCount;
+                await executeBlockList(block.children);
+                if (isContinuousDrivingRef.current.moving && physicsStepsCount === stepsBefore) {
+                  const hit = stepContinuousMovement(null, 1.0);
+                  if (hit) break;
+                  await sleep(25);
+                }
+              } else {
+                if (isContinuousDrivingRef.current.moving) {
+                  const hit = stepContinuousMovement(null, 1.0);
+                  if (hit) break;
+                }
+                await sleep(40);
+              }
             }
             break;
           }
@@ -1922,30 +1984,45 @@ export default function App() {
 
           case 'repeat_until_block': {
             let guard = 0;
-            while (
-              !stopFlagRef.current &&
-              !evaluateBooleanCondition(block.conditionBlock, p, pose) &&
-              guard < 40
-            ) {
+            const maxGuard = 1500;
+            while (!stopFlagRef.current && guard < maxGuard) {
+              const isMet = evaluateBooleanCondition(block.conditionBlock, p, pose);
+              if (isMet) {
+                setStatusLog(`repeat until < >: Điều kiện thỏa mãn sau ${guard} vòng lặp.`);
+                break;
+              }
               guard += 1;
-              setStatusLog(`repeat until < > (lần #${guard})...`);
+              if (guard % 10 === 0 || guard <= 3) {
+                setStatusLog(`repeat until < > (vòng #${guard})...`);
+              }
               if (Array.isArray(block.children) && block.children.length > 0) {
+                const stepsBefore = physicsStepsCount;
                 await executeBlockList(block.children);
-              } else {
-                const rad = (pose.angle * Math.PI) / 180;
-                const nx = Math.max(25, Math.min(495, pose.x + Math.cos(rad) * 4.5));
-                const ny = Math.max(25, Math.min(240, pose.y + Math.sin(rad) * 4.5));
-                const col = findCollision({ x: nx, y: ny }, solids);
-                if (col) {
-                  collisionOccurred = true;
-                  break;
+                if (isContinuousDrivingRef.current.moving && physicsStepsCount === stepsBefore) {
+                  const hit = stepContinuousMovement(null, 1.0);
+                  if (hit) break;
+                  await sleep(25);
                 }
-                pose.x = nx;
-                pose.y = ny;
-                const live = computeLiveArenaSensors(pose.x, pose.y, pose.angle);
-                pose.distanceCm = live.distanceCm;
-                pose.trail = [...pose.trail, { x: pose.x, y: pose.y }];
-                setRobotPose({ ...pose });
+              } else {
+                if (isContinuousDrivingRef.current.moving) {
+                  const hit = stepContinuousMovement(null, 1.0);
+                  if (hit) break;
+                } else {
+                  const rad = (pose.angle * Math.PI) / 180;
+                  const nx = Math.max(25, Math.min(495, pose.x + Math.cos(rad) * 4.5));
+                  const ny = Math.max(25, Math.min(240, pose.y + Math.sin(rad) * 4.5));
+                  const col = findCollision({ x: nx, y: ny }, solids);
+                  if (col) {
+                    collisionOccurred = true;
+                    break;
+                  }
+                  pose.x = nx;
+                  pose.y = ny;
+                  const live = computeLiveArenaSensors(pose.x, pose.y, pose.angle);
+                  pose.distanceCm = live.distanceCm;
+                  pose.trail = [...pose.trail, { x: pose.x, y: pose.y }];
+                  setRobotPose({ ...pose });
+                }
                 await sleep(30);
               }
             }
@@ -1958,7 +2035,7 @@ export default function App() {
             while (
               !stopFlagRef.current &&
               !evaluateBooleanCondition(block.conditionBlock, p, pose) &&
-              guard < 180
+              guard < 1200
             ) {
               guard += 1;
               if (isContinuousDrivingRef.current.moving) {

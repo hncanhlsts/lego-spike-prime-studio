@@ -10,6 +10,53 @@ import { BLOCK_DEFINITIONS } from '../data/spikeData';
 
 const PORT_OPTIONS = ['A', 'B', 'C', 'D', 'E', 'F'];
 
+export const STEERING_OPTIONS = [
+  { val: -100, label: 'spin left: 100' },
+  { val: -90, label: 'left: 90' },
+  { val: -60, label: 'left: 60' },
+  { val: -50, label: 'left: 50' },
+  { val: -45, label: 'left: 45' },
+  { val: -40, label: 'left: 40' },
+  { val: -30, label: 'left: 30' },
+  { val: -20, label: 'left: 20' },
+  { val: -15, label: 'left: 15' },
+  { val: -10, label: 'left: 10' },
+  { val: 0, label: 'straight: 0' },
+  { val: 10, label: 'right: 10' },
+  { val: 15, label: 'right: 15' },
+  { val: 20, label: 'right: 20' },
+  { val: 30, label: 'right: 30' },
+  { val: 40, label: 'right: 40' },
+  { val: 45, label: 'right: 45' },
+  { val: 50, label: 'right: 50' },
+  { val: 60, label: 'right: 60' },
+  { val: 90, label: 'right: 90' },
+  { val: 100, label: 'spin right: 100' }
+];
+
+export function SteeringSelect({ value, onChange, className }) {
+  const currentVal = Number(value ?? 30);
+  const exists = STEERING_OPTIONS.some((o) => o.val === currentVal);
+  return (
+    <select
+      value={currentVal}
+      onChange={(e) => onChange(Number(e.target.value))}
+      className={className || "bg-white text-[#575E75] font-semibold px-2.5 h-[24px] rounded-full text-[11px] border border-black/20 cursor-pointer"}
+    >
+      {!exists && (
+        <option value={currentVal}>
+          {currentVal > 0 ? `right: ${currentVal}` : currentVal < 0 ? `left: ${Math.abs(currentVal)}` : 'straight: 0'}
+        </option>
+      )}
+      {STEERING_OPTIONS.map((opt) => (
+        <option key={opt.val} value={opt.val}>
+          {opt.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 // 1. Icon bánh xe Technic chuẩn giống hệt bên trái khối lệnh Motors & Movement trong SPIKE 3.5.1
 export function SpikeWheelBadge({ bg = 'rgba(0,0,0,0.18)' }) {
   return (
@@ -573,21 +620,13 @@ export default function SpikeBlockItem({
             <SpikeWheelBadge />
             <span className="h-4 border-r border-black/15" />
             <span>move</span>
-            <select
+            <SteeringSelect
               value={params.steering ?? 30}
-              onChange={(e) => {
-                const v = Number(e.target.value);
+              onChange={(v) => {
                 update('steering', v);
                 update('steeringText', v >= 0 ? `right: ${v}` : `left: ${Math.abs(v)}`);
               }}
-              className="bg-white text-[#575E75] font-semibold px-2.5 h-[24px] rounded-full text-[11px] border border-black/20 cursor-pointer"
-            >
-              <option value={30}>right: 30</option>
-              <option value={90}>right: 90</option>
-              <option value={0}>straight: 0</option>
-              <option value={-30}>left: 30</option>
-              <option value={-90}>left: 90</option>
-            </select>
+            />
             <span>for</span>
             <input
               type="number"
@@ -615,17 +654,13 @@ export default function SpikeBlockItem({
             <SpikeWheelBadge />
             <span className="h-4 border-r border-black/15" />
             <span>start moving</span>
-            <select
+            <SteeringSelect
               value={params.steering ?? 30}
-              onChange={(e) => update('steering', Number(e.target.value))}
-              className="bg-white text-[#575E75] font-semibold px-2.5 h-[24px] rounded-full text-[11px] border border-black/20 cursor-pointer"
-            >
-              <option value={30}>right: 30</option>
-              <option value={90}>right: 90</option>
-              <option value={0}>straight: 0</option>
-              <option value={-30}>left: 30</option>
-              <option value={-90}>left: 90</option>
-            </select>
+              onChange={(v) => {
+                update('steering', v);
+                update('steeringText', v >= 0 ? `right: ${v}` : `left: ${Math.abs(v)}`);
+              }}
+            />
           </div>
         );
 
