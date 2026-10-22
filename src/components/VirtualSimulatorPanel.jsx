@@ -211,6 +211,8 @@ export default function VirtualSimulatorPanel({
   onCargoStatusChange
 }) {
   const canvas2DRef = useRef(null);
+  const arenaContainerRef = useRef(null);
+  const [arenaDisplaySize, setArenaDisplaySize] = useState({ w: 520, h: 265 });
   const floorCanvasRef = useRef(null);
   const mount3DRef = useRef(null);
   const sceneObjectsRef = useRef(null);
@@ -251,6 +253,39 @@ export default function VirtualSimulatorPanel({
   useEffect(() => {
     interaction3DModeRef.current = interaction3DMode;
   }, [interaction3DMode]);
+
+  // Luôn khóa tỉ lệ khung hình chuẩn 520x265 (tỉ lệ 1.962:1) trên mọi độ phân giải màn hình
+  // Đảm bảo 1cm ngang = 1cm dọc trên màn hình -> hình vuông hiển thị đúng 100% hình vuông
+  useEffect(() => {
+    const el = arenaContainerRef.current;
+    if (!el) return;
+    const updateSize = () => {
+      const cw = el.clientWidth - 16;
+      const ch = el.clientHeight - 16;
+      if (cw <= 0 || ch <= 0) return;
+      const ratio = 520 / 265;
+      if (cw / ch > ratio) {
+        const h = Math.floor(ch);
+        const w = Math.floor(ch * ratio);
+        setArenaDisplaySize({ w, h });
+      } else {
+        const w = Math.floor(cw);
+        const h = Math.floor(cw / ratio);
+        setArenaDisplaySize({ w, h });
+      }
+    };
+    updateSize();
+    let ro = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(updateSize);
+      ro.observe(el);
+    }
+    window.addEventListener('resize', updateSize);
+    return () => {
+      if (ro) ro.disconnect();
+      window.removeEventListener('resize', updateSize);
+    };
+  }, []);
 
   const safeArena = arenaConfig || {
     startPose: { x: 75, y: 132, angle: 0 },
@@ -2185,8 +2220,11 @@ export default function VirtualSimulatorPanel({
         </div>
       )}
 
-      {/* KHUNG MÔ PHỎNG 2D HOẶC 3D (KHÔNG DÙNG OBJECT-CONTAIN ĐỂ TỌA ĐỘ CHUỘT CHÍNH XÁC 100%) */}
-      <div className="relative flex-1 min-h-0 bg-slate-950 flex items-center justify-center overflow-hidden">
+      {/* KHUNG MÔ PHỎNG 2D HOẶC 3D (ĐẢM BẢO TỈ LỆ 1:1 CHUẨN XÁC, KHÔNG BỊ BIẾN DẠNG HÌNH CHỮ NHẬT) */}
+      <div
+        ref={arenaContainerRef}
+        className="relative flex-1 min-h-0 bg-slate-950 flex items-center justify-center p-2 overflow-hidden"
+      >
         {simMode === '2D' ? (
           <canvas
             ref={canvas2DRef}
@@ -2199,7 +2237,12 @@ export default function VirtualSimulatorPanel({
               setHoverPt(null);
               handleCanvasPointerUp();
             }}
-            className={`w-full h-full block bg-slate-100 touch-none ${
+            style={{
+              width: `${arenaDisplaySize.w}px`,
+              height: `${arenaDisplaySize.h}px`,
+              aspectRatio: '520 / 265'
+            }}
+            className={`block bg-slate-100 shadow-2xl rounded-lg border border-slate-700/60 touch-none ${
               isEditingArena
                 ? editorTool === 'move_drag'
                   ? 'cursor-move ring-2 ring-inset ring-sky-400'
