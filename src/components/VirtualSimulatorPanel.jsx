@@ -23,7 +23,11 @@ import {
   Grid,
   Package,
   Sparkles,
-  Camera
+  Camera,
+  Ruler,
+  Compass,
+  Navigation,
+  Check
 } from 'lucide-react';
 import * as THREE from 'three';
 import { PX_PER_CM, SENSOR_OFFSET_PX, ROBOT_RADIUS_PX } from '../utils/simPhysics';
@@ -209,7 +213,8 @@ export default function VirtualSimulatorPanel({
   onUpdateArenaConfig,
   onSetStartPose,
   onFloorCanvasReady,
-  onCargoStatusChange
+  onCargoStatusChange,
+  onApplyMeasurement
 }) {
   const canvas2DRef = useRef(null);
   const arenaContainerRef = useRef(null);
@@ -218,6 +223,13 @@ export default function VirtualSimulatorPanel({
   const mount3DRef = useRef(null);
   const sceneObjectsRef = useRef(null);
   const bgImageCacheRef = useRef({ src: '', img: null });
+
+  // Thước đo khoảng cách (cm), vòng quay bánh xe và góc rẽ tương tác (Ruler & Protractor Tool)
+  const [isRulerActive, setIsRulerActive] = useState(false);
+  const [rulerPoints, setRulerPoints] = useState(null); // { start: { x, y }, end: { x, y } }
+  const [isMeasuring, setIsMeasuring] = useState(false);
+  const [rulerSnapToRobot, setRulerSnapToRobot] = useState(true);
+  const [copiedMeasurement, setCopiedMeasurement] = useState(false);
 
   // Chế độ Thiết kế Sa bàn trực tiếp trên Canvas 2D
   const [isEditingArena, setIsEditingArena] = useState(false);
@@ -233,6 +245,27 @@ export default function VirtualSimulatorPanel({
   const [hoverPt, setHoverPt] = useState(null);
   const currentLineRef = useRef([]);
   const draggedItemRef = useRef(null); // { group: 'goals'|'obstacles'|'walls'|'colorPatches'|'cargos'|'startPose', id, offsetX, offsetY }
+
+  // Chuyển đổi bật/tắt Thước đo
+  const handleToggleRuler = () => {
+    setIsRulerActive((prev) => {
+      const next = !prev;
+      if (next) {
+        setIsEditingArena(false);
+        if (!rulerPoints) {
+          const rad = ((robotPose?.angle || 0) * Math.PI) / 180;
+          setRulerPoints({
+            start: { x: Math.round(robotPose?.x || 75), y: Math.round(robotPose?.y || 132) },
+            end: {
+              x: Math.round((robotPose?.x || 75) + Math.cos(rad) * 70),
+              y: Math.round((robotPose?.y || 132) + Math.sin(rad) * 70)
+            }
+          });
+        }
+      }
+      return next;
+    });
+  };
 
   // Chế độ tương tác chuột trong 3D: 'orbit' (Xoay Camera) | 'drag_cargo' (Kéo thả Kiện hàng 3D)
   const [interaction3DMode, setInteraction3DMode] = useState('drag_cargo');
@@ -388,7 +421,7 @@ export default function VirtualSimulatorPanel({
   };
 
   const handleCanvasPointerDown = (e) => {
-    if (!isEditingArena || simMode !== '2D' || !onUpdateArenaConfig) return;
+    if (simMode !== '2D') return;
     if (e.currentTarget.setPointerCapture) {
       try {
         e.currentTarget.setPointerCapture(e.pointerId);
@@ -399,6 +432,22 @@ export default function VirtualSimulatorPanel({
 
     const pt = getCanvasCoords(e);
     setHoverPt(pt);
+
+    if (isRulerActive) {
+      setIsMeasuring(true);
+      const nearRobot = Math.hypot(pt.x - (robotPose?.x || 0), pt.y - (robotPose?.y || 0)) < 30;
+      const startPt =
+        rulerSnapToRobot || nearRobot
+          ? { x: Math.round(robotPose?.x || 75), y: Math.round(robotPose?.y || 132) }
+          : { x: Math.round(pt.x), y: Math.round(pt.y) };
+      setRulerPoints({
+        start: startPt,
+        end: { x: Math.round(pt.x), y: Math.round(pt.y) }
+      });
+      return;
+    }
+
+    if (!isEditingArena || !onUpdateArenaConfig) return;
 
     if (editorTool === 'move_drag') {
       const hit = findDraggableAtPoint(pt);
@@ -569,11 +618,16 @@ export default function VirtualSimulatorPanel({
   };
 
   const handleCanvasPointerMove = (e) => {
-    if (!isEditingArena || simMode !== '2D') return;
+    if (simMode !== '2D') return;
     const pt = getCanvasCoords(e);
     setHoverPt(pt);
 
-    if (!isDrawing) return;
+    if (isRulerActive && isMeasuring) {
+      setRulerPoints((prev) => (prev ? { ...prev, end: { x: Math.round(pt.x), y: Math.round(pt.y) } } : null));
+      return;
+    }
+
+    if (!isEditingArena || !isDrawing) return;
 
     if (editorTool === 'move_drag' && draggedItemRef.current && onUpdateArenaConfig) {
       const { group, id, offsetX, offsetY } = draggedItemRef.current;
@@ -620,6 +674,10 @@ export default function VirtualSimulatorPanel({
   };
 
   const handleCanvasPointerUp = () => {
+    if (isRulerActive && isMeasuring) {
+      setIsMeasuring(false);
+      return;
+    }
     if (!isDrawing) return;
     setIsDrawing(false);
     draggedItemRef.current = null;
@@ -1279,6 +1337,121 @@ export default function VirtualSimulatorPanel({
       ctx.fillText(labelText, lx, ly);
       ctx.restore();
     }
+
+    // 7. VẼ THƯỚC ĐO KHOẢNG CÁCH & ĐO GÓC TƯƠNG TÁC (RULER & PROTRACTOR TOOL)
+    if (rulerPoints && (isRulerActive || isMeasuring)) {
+      const { start, end } = rulerPoints;
+      const dx = end.x - start.x;
+      const dy = end.y - start.y;
+      const distPx = Math.hypot(dx, dy);
+      const distCm = (distPx / PX_PER_CM).toFixed(1);
+      const rotations = (distCm / 17.59).toFixed(2); // 1 vòng bánh xe 5.6cm = 17.59cm
+
+      // Góc hướng của tia đo trên sa bàn (-180° đến 180°)
+      const targetAngleDeg = Math.round((Math.atan2(dy, dx) * 180) / Math.PI);
+      const currentRobotAngle = Math.round(robotPose?.angle || 0);
+      let relTurn = ((targetAngleDeg - currentRobotAngle + 180) % 360 + 360) % 360 - 180;
+      let relTurnText =
+        relTurn === 0 ? 'Đi thẳng (0°)' : relTurn > 0 ? `Rẽ phải +${relTurn}°` : `Rẽ trái ${relTurn}°`;
+
+      ctx.save();
+
+      // Tia laser đo đạc phát sáng cyan
+      ctx.shadowColor = '#06b6d4';
+      ctx.shadowBlur = 8;
+      ctx.strokeStyle = '#06b6d4';
+      ctx.lineWidth = 2.5;
+      ctx.setLineDash([6, 4]);
+      ctx.beginPath();
+      ctx.moveTo(start.x, start.y);
+      ctx.lineTo(end.x, end.y);
+      ctx.stroke();
+
+      // Cung tròn đo góc quay (Protractor Arc) tại điểm A
+      if (distPx > 22) {
+        const robotRad = (currentRobotAngle * Math.PI) / 180;
+        const targetRad = Math.atan2(dy, dx);
+        ctx.setLineDash([]);
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = '#f59e0b';
+        ctx.fillStyle = 'rgba(245, 158, 11, 0.25)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(start.x, start.y);
+        ctx.arc(start.x, start.y, 22, robotRad, targetRad, relTurn < 0);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      }
+
+      // Điểm bắt đầu A (Anchor A)
+      ctx.setLineDash([]);
+      ctx.shadowBlur = 6;
+      ctx.fillStyle = '#0891b2';
+      ctx.beginPath();
+      ctx.arc(start.x, start.y, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 8px Inter, sans-serif';
+      ctx.fillText('A', start.x - 3, start.y - 7);
+
+      // Điểm kết thúc B (Target B với hồng tâm)
+      ctx.fillStyle = '#f59e0b';
+      ctx.beginPath();
+      ctx.arc(end.x, end.y, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(end.x - 8, end.y);
+      ctx.lineTo(end.x + 8, end.y);
+      ctx.moveTo(end.x, end.y - 8);
+      ctx.lineTo(end.x, end.y + 8);
+      ctx.stroke();
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText('B', end.x + 8, end.y - 5);
+
+      // Thẻ HUD thông số nổi (Floating HUD Info Card)
+      const mx = (start.x + end.x) / 2;
+      const my = (start.y + end.y) / 2;
+      const cardW = 142;
+      const cardH = 46;
+      const cardX = Math.max(8, Math.min(W - cardW - 8, mx - cardW / 2));
+      const cardY = Math.max(8, Math.min(H - cardH - 8, my - cardH - 12));
+
+      // Nền thẻ đổ bóng nổi bật
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+      ctx.shadowBlur = 10;
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.94)';
+      ctx.beginPath();
+      if (typeof ctx.roundRect === 'function') {
+        ctx.roundRect(cardX, cardY, cardW, cardH, 8);
+      } else {
+        ctx.rect(cardX, cardY, cardW, cardH);
+      }
+      ctx.fill();
+      ctx.strokeStyle = '#06b6d4';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+
+      // Dòng 1: Khoảng cách cm & px
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = 'bold 9.5px Inter, sans-serif';
+      ctx.fillText(`📏 ${distCm} cm (${Math.round(distPx)} px)`, cardX + 8, cardY + 14);
+
+      // Dòng 2: Vòng quay bánh xe (rotations)
+      ctx.fillStyle = '#fde047';
+      ctx.font = 'bold 9px Inter, sans-serif';
+      ctx.fillText(`🔄 ${rotations} vòng bánh xe`, cardX + 8, cardY + 28);
+
+      // Dòng 3: Góc rẽ tương đối so với mũi Robot
+      ctx.fillStyle = '#fb923c';
+      ctx.font = 'bold 9px Inter, sans-serif';
+      ctx.fillText(`🧭 ${relTurnText}`, cardX + 8, cardY + 41);
+
+      ctx.restore();
+    }
   }, [
     simMode,
     mapType,
@@ -1287,6 +1460,9 @@ export default function VirtualSimulatorPanel({
     isDrawing,
     drawingTick,
     isEditingArena,
+    isRulerActive,
+    rulerPoints,
+    isMeasuring,
     hoverPt,
     editorTool,
     selectedLineColor,
@@ -1866,19 +2042,38 @@ export default function VirtualSimulatorPanel({
           </select>
 
           {simMode === '2D' && (
-            <button
-              type="button"
-              onClick={() => setIsEditingArena((v) => !v)}
-              className={`inline-flex items-center gap-1 h-7 px-2.5 rounded-lg text-[11px] font-bold border transition shrink-0 whitespace-nowrap ${
-                isEditingArena
-                  ? 'bg-amber-400 text-slate-950 border-amber-300 shadow'
-                  : 'bg-slate-900 hover:bg-slate-800 text-amber-300 border-amber-500/40'
-              }`}
-              title="Bật công cụ tự vẽ đường Line chính xác tại con trỏ chuột, kéo thả Vật cản, Ô Đích, Kiện hàng và vị trí Robot"
-            >
-              <Wrench className="w-3.5 h-3.5 shrink-0" />
-              <span>{isEditingArena ? '✓ Đóng Thiết Kế' : '🛠 Thiết Kế Sa Bàn'}</span>
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={handleToggleRuler}
+                className={`inline-flex items-center gap-1 h-7 px-2.5 rounded-lg text-[11px] font-bold border transition shrink-0 whitespace-nowrap ${
+                  isRulerActive
+                    ? 'bg-cyan-500 text-slate-950 border-cyan-300 shadow ring-2 ring-cyan-300'
+                    : 'bg-cyan-950/60 hover:bg-cyan-900/80 text-cyan-300 border-cyan-500/50'
+                }`}
+                title="Bật Thước đo khoảng cách (cm), số vòng quay bánh xe và thước đo góc quay (độ) trực tiếp trên sa bàn"
+              >
+                <Ruler className="w-3.5 h-3.5 shrink-0" />
+                <span>{isRulerActive ? '✓ Đóng Thước Đo' : '📐 Thước Đo & Góc'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEditingArena((v) => !v);
+                  if (!isEditingArena) setIsRulerActive(false);
+                }}
+                className={`inline-flex items-center gap-1 h-7 px-2.5 rounded-lg text-[11px] font-bold border transition shrink-0 whitespace-nowrap ${
+                  isEditingArena
+                    ? 'bg-amber-400 text-slate-950 border-amber-300 shadow'
+                    : 'bg-slate-900 hover:bg-slate-800 text-amber-300 border-amber-500/40'
+                }`}
+                title="Bật công cụ tự vẽ đường Line chính xác tại con trỏ chuột, kéo thả Vật cản, Ô Đích, Kiện hàng và vị trí Robot"
+              >
+                <Wrench className="w-3.5 h-3.5 shrink-0" />
+                <span>{isEditingArena ? '✓ Đóng Thiết Kế' : '🛠 Thiết Kế Sa Bàn'}</span>
+              </button>
+            </>
           )}
 
           {/* Ô trạng thái cố định kích thước 1 dòng */}
@@ -2251,6 +2446,81 @@ export default function VirtualSimulatorPanel({
         ref={arenaContainerRef}
         className="relative flex-1 min-h-0 bg-slate-950 flex items-center justify-center p-2 overflow-hidden"
       >
+        {/* LỚP NỔI THÔNG TIN VÀ ĐIỀU KHIỂN THƯỚC ĐO KHI ĐANG BẬT THƯỚC */}
+        {isRulerActive && simMode === '2D' && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 bg-slate-900/95 backdrop-blur-md border border-cyan-400/60 shadow-[0_4px_24px_rgba(6,182,212,0.35)] px-3 py-1.5 rounded-xl flex items-center gap-2 text-xs">
+            <div className="flex items-center gap-1.5 text-cyan-300 font-extrabold text-[11px]">
+              <Ruler className="w-4 h-4 text-cyan-400 shrink-0" />
+              <span className="hidden sm:inline">Kéo chuột đo:</span>
+            </div>
+
+            {rulerPoints && (
+              <div className="flex items-center gap-2 font-mono text-[11px] bg-slate-950 px-2.5 py-0.5 rounded-lg border border-slate-800">
+                <span className="text-cyan-300 font-black">
+                  {(Math.hypot(rulerPoints.end.x - rulerPoints.start.x, rulerPoints.end.y - rulerPoints.start.y) / PX_PER_CM).toFixed(1)} cm
+                </span>
+                <span className="text-yellow-300 font-bold">
+                  {((Math.hypot(rulerPoints.end.x - rulerPoints.start.x, rulerPoints.end.y - rulerPoints.start.y) / PX_PER_CM) / 17.59).toFixed(2)} vòng
+                </span>
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => {
+                const rad = ((robotPose?.angle || 0) * Math.PI) / 180;
+                setRulerPoints({
+                  start: { x: Math.round(robotPose?.x || 75), y: Math.round(robotPose?.y || 132) },
+                  end: {
+                    x: Math.round((robotPose?.x || 75) + Math.cos(rad) * 70),
+                    y: Math.round((robotPose?.y || 132) + Math.sin(rad) * 70)
+                  }
+                });
+              }}
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-cyan-950 hover:bg-cyan-900 text-cyan-200 border border-cyan-700 text-[10px] font-bold transition"
+              title="Đặt gốc thước đo ngay tại tâm Robot"
+            >
+              <Navigation className="w-3 h-3 text-cyan-400" />
+              <span>Gắn Robot</span>
+            </button>
+
+            {onApplyMeasurement && rulerPoints && (
+              <button
+                type="button"
+                onClick={() => {
+                  const dx = rulerPoints.end.x - rulerPoints.start.x;
+                  const dy = rulerPoints.end.y - rulerPoints.start.y;
+                  const distCm = Number((Math.hypot(dx, dy) / PX_PER_CM).toFixed(1));
+                  const targetAngleDeg = Math.round((Math.atan2(dy, dx) * 180) / Math.PI);
+                  const currentRobotAngle = Math.round(robotPose?.angle || 0);
+                  const relTurn = ((targetAngleDeg - currentRobotAngle + 180) % 360 + 360) % 360 - 180;
+                  onApplyMeasurement({
+                    distCm,
+                    rotations: Number((distCm / 17.59).toFixed(2)),
+                    turnAngle: relTurn
+                  });
+                  setCopiedMeasurement(true);
+                  setTimeout(() => setCopiedMeasurement(false), 2000);
+                }}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black shadow transition"
+                title="Tự động thêm khối lệnh Rẽ và Đi thẳng vào vùng lập trình theo đúng khoảng cách và góc vừa đo"
+              >
+                {copiedMeasurement ? <Check className="w-3 h-3 text-white" /> : <Sparkles className="w-3 h-3 text-amber-300" />}
+                <span>{copiedMeasurement ? '✓ Đã Thêm Vào Code!' : '+ Nạp Vào Khối Lệnh'}</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setRulerPoints(null)}
+              className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[10px] font-bold transition"
+              title="Xóa đường thước đo hiện tại"
+            >
+              ✕ Xóa Thước
+            </button>
+          </div>
+        )}
+
         {simMode === '2D' ? (
           <canvas
             ref={canvas2DRef}
@@ -2269,7 +2539,9 @@ export default function VirtualSimulatorPanel({
               aspectRatio: '520 / 265'
             }}
             className={`block bg-slate-100 shadow-2xl rounded-lg border border-slate-700/60 touch-none ${
-              isEditingArena
+              isRulerActive
+                ? 'cursor-crosshair ring-2 ring-cyan-400 shadow-[0_0_24px_rgba(6,182,212,0.4)]'
+                : isEditingArena
                 ? editorTool === 'move_drag'
                   ? 'cursor-move ring-2 ring-inset ring-sky-400'
                   : 'cursor-crosshair ring-2 ring-inset ring-amber-400'

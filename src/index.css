@@ -24,11 +24,11 @@ input.spike-oval-input[type=number] {
 
 /* Custom light scrollbar matching LEGO Education SPIKE 3.5.1 */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: #f1f5f9;
 }
 ::-webkit-scrollbar-thumb {
   background: #cbd5e1;
@@ -36,6 +36,35 @@ input.spike-oval-input[type=number] {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
+}
+
+/* Dedicated prominent scrollbars for code editing area & python viewer */
+.code-canvas-scrollbar::-webkit-scrollbar,
+.visible-code-scrollbar::-webkit-scrollbar {
+  width: 11px;
+  height: 11px;
+}
+.code-canvas-scrollbar::-webkit-scrollbar-track,
+.visible-code-scrollbar::-webkit-scrollbar-track {
+  background: #e2e8f0;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+}
+.code-canvas-scrollbar::-webkit-scrollbar-thumb,
+.visible-code-scrollbar::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 8px;
+  border: 2px solid #e2e8f0;
+}
+.code-canvas-scrollbar::-webkit-scrollbar-thumb:hover,
+.visible-code-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+.code-canvas-scrollbar,
+.visible-code-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #94a3b8 #e2e8f0;
 }
 
 /* LEGO SPIKE Prime 3.5.1 Canvas Dot Grid Background */

@@ -289,6 +289,56 @@ export default function App() {
   const [canvasZoom, setCanvasZoom] = useState(100);
   const [copiedPython, setCopiedPython] = useState(false);
 
+  // Chế độ bố cục khung sa bàn: 'balanced' (52%), 'wide' (68%), 'max' (82%)
+  const [arenaLayoutMode, setArenaLayoutMode] = useState('balanced');
+  const codeScrollContainerRef = useRef(null);
+
+  // Xử lý nạp kết quả đo từ Thước Đo Khoảng Cách & Đo Góc vào Chồng Lệnh
+  const handleApplyMeasurement = useCallback(
+    ({ distCm, rotations, turnAngle }) => {
+      const newBlocks = [];
+      if (Math.abs(turnAngle) >= 3) {
+        const dir = turnAngle >= 0 ? 'right' : 'left';
+        newBlocks.push({
+          id: `blk_${Date.now()}_turn`,
+          type: 'turn_in_place',
+          params: {
+            direction: dir,
+            degrees: Math.abs(turnAngle)
+          }
+        });
+      }
+      if (distCm > 0) {
+        newBlocks.push({
+          id: `blk_${Date.now() + 1}_move`,
+          type: 'move_straight_distance',
+          params: {
+            direction: 'forward',
+            distance: Math.round(distCm),
+            unit: 'cm'
+          }
+        });
+      }
+
+      if (newBlocks.length > 0) {
+        setBlocks((prev) => [...prev, ...newBlocks]);
+        playSnapClick(750);
+        setStatusLog(
+          `📏 Đã nạp từ Thước Đo: ${Math.abs(turnAngle) >= 3 ? `Rẽ ${turnAngle}° & ` : ''}Đi thẳng ${Math.round(distCm)} cm (${rotations} vòng) vào Chồng Lệnh!`
+        );
+        setTimeout(() => {
+          if (codeScrollContainerRef.current) {
+            codeScrollContainerRef.current.scrollTo({
+              top: codeScrollContainerRef.current.scrollHeight,
+              behavior: 'smooth'
+            });
+          }
+        }, 150);
+      }
+    },
+    [setBlocks]
+  );
+
   // Hệ thống Kéo - Thả (Drag & Drop)
   const [dragState, setDragState] = useState(null);
   const dragStateRef = useRef(null);
@@ -3433,14 +3483,19 @@ export default function App() {
               )}
             </div>
 
-            {/* VÙNG CHỨA CHỒNG LỆNH KÉO THẢ */}
-            <div className="flex-1 min-h-0 overflow-auto px-8 py-6">
+            {/* VÙNG CHỨA CHỒNG LỆNH KÉO THẢ (CÓ THANH CUỘN RÕ RÀNG & NÚT CUỘN NHANH ĐẦU/CUỐI TRANG) */}
+            <div
+              ref={codeScrollContainerRef}
+              className="flex-1 min-h-0 overflow-y-scroll overflow-x-auto px-8 py-6 code-canvas-scrollbar relative select-text"
+            >
               <div
                 style={{
                   transform: `scale(${canvasZoom / 100})`,
-                  transformOrigin: 'top left'
+                  transformOrigin: 'top left',
+                  minHeight: '100%',
+                  minWidth: 'max-content'
                 }}
-                className="space-y-0.5 pb-20"
+                className="space-y-0.5 pb-36"
               >
                 {blocks.length === 0 ? (
                   <div className="border-2 border-dashed border-slate-300 bg-white/70 rounded-2xl p-8 text-center max-w-md">
@@ -3483,6 +3538,39 @@ export default function App() {
                     ))}
                     {renderDropIndicatorLine(blocks.length)}
                   </>
+                )}
+
+                {/* NÚT CUỘN NHANH ĐẦU/CUỐI KHI CHỒNG LỆNH DÀI */}
+                {blocks.length >= 6 && (
+                  <div className="sticky bottom-2 left-full -ml-28 w-fit z-20 flex flex-col gap-1.5 shadow-lg select-none">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        codeScrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      className="p-1.5 rounded-lg bg-slate-900/90 hover:bg-slate-800 text-white border border-slate-700 shadow flex items-center justify-center text-[10px] font-bold gap-1 px-2.5 transition"
+                      title="Cuộn lên đầu chương trình"
+                    >
+                      <ChevronUp className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Đầu trang</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (codeScrollContainerRef.current) {
+                          codeScrollContainerRef.current.scrollTo({
+                            top: codeScrollContainerRef.current.scrollHeight,
+                            behavior: 'smooth'
+                          });
+                        }
+                      }}
+                      className="p-1.5 rounded-lg bg-slate-900/90 hover:bg-slate-800 text-white border border-slate-700 shadow flex items-center justify-center text-[10px] font-bold gap-1 px-2.5 transition"
+                      title="Cuộn xuống cuối chương trình"
+                    >
+                      <ChevronDown className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>Cuối trang</span>
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
@@ -3570,7 +3658,15 @@ export default function App() {
           </div>
 
           {/* KHUNG MÀU ĐỎ BÊN PHẢI (CHỨA SA BÀN 2D/3D, CƠ CẤU SPIKE PRIME, HUB & PYTHON) */}
-          <div className="w-[52%] min-w-[460px] max-w-[680px] h-full p-3 flex flex-col justify-between bg-transparent z-10 shrink-0">
+          <div
+            className={`h-full p-3 flex flex-col justify-between bg-transparent z-10 shrink-0 transition-all duration-300 ${
+              arenaLayoutMode === 'max'
+                ? 'w-[82%] min-w-[720px]'
+                : arenaLayoutMode === 'wide'
+                ? 'w-[68%] min-w-[600px]'
+                : 'w-[52%] min-w-[480px] max-w-[960px]'
+            }`}
+          >
             <div className="flex-1 min-h-0 bg-white rounded-2xl border-2 border-rose-500 shadow-[0_8px_30px_rgba(244,63,94,0.12)] flex flex-col overflow-hidden">
               {/* Thanh Tab cố định chiều cao h-11 shrink-0 không bao giờ xuống dòng */}
               <div className="h-11 shrink-0 px-3 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800 overflow-hidden whitespace-nowrap">
@@ -3622,6 +3718,47 @@ export default function App() {
                     Cơ Cấu & Lắp Ráp
                   </button>
                 </div>
+
+                {/* NÚT CHUYỂN BỐ CỤC: CÂN BẰNG (52%) | MỞ RỘNG (68%) | TOÀN CẢNH (82%) */}
+                <div className="flex items-center gap-1 bg-slate-800 p-0.5 rounded-lg border border-slate-700">
+                  <span className="text-[10px] text-slate-400 font-bold px-1.5 hidden xl:inline">Khung sa bàn:</span>
+                  <button
+                    type="button"
+                    onClick={() => setArenaLayoutMode('balanced')}
+                    className={`px-2 py-0.5 rounded text-[10px] font-bold transition ${
+                      arenaLayoutMode === 'balanced'
+                        ? 'bg-rose-500 text-white shadow'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                    title="Chế độ Cân Bằng (52% Sa Bàn / 48% Lập Trình)"
+                  >
+                    Cân Bằng
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setArenaLayoutMode('wide')}
+                    className={`px-2 py-0.5 rounded text-[10px] font-bold transition ${
+                      arenaLayoutMode === 'wide'
+                        ? 'bg-amber-400 text-slate-950 shadow'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                    title="Chế độ Mở Rộng (68% Sa Bàn — Kéo dài sa bàn để có nhiều không gian quan sát lộ trình)"
+                  >
+                    Mở Rộng ⛶
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setArenaLayoutMode('max')}
+                    className={`px-2 py-0.5 rounded text-[10px] font-bold transition ${
+                      arenaLayoutMode === 'max'
+                        ? 'bg-emerald-400 text-slate-950 shadow'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                    title="Chế độ Toàn Cảnh (82% Sa Bàn — Khung sa bàn cực đại)"
+                  >
+                    Toàn Cảnh 🖥
+                  </button>
+                </div>
               </div>
 
               {rightRedZoneTab === 'arena' && (
@@ -3648,6 +3785,7 @@ export default function App() {
                       arenaConfig={arenaConfig}
                       onUpdateArenaConfig={handleUpdateArenaConfig}
                       onSetStartPose={handleSetStartPose}
+                      onApplyMeasurement={handleApplyMeasurement}
                       onFloorCanvasReady={(canvas) => {
                         floorCanvasRef.current = canvas;
                       }}
@@ -3844,9 +3982,12 @@ export default function App() {
 
               {rightRedZoneTab === 'python' && (
                 <div className="flex-1 bg-slate-950 text-emerald-300 p-3 flex flex-col overflow-hidden">
-                  <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800 text-xs">
-                    <span className="font-mono font-bold text-white">
-                      main.py (SPIKE™ Prime Python 3 API - Đồng bộ từ Word Blocks)
+                  <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800 text-xs shrink-0">
+                    <span className="font-mono font-bold text-white flex items-center gap-2">
+                      <span>main.py (SPIKE™ Prime Python 3 API)</span>
+                      <span className="text-[10px] text-slate-400 font-normal">
+                        ({pythonCode.split('\n').length} dòng)
+                      </span>
                     </span>
                     <button
                       onClick={() => {
@@ -3854,7 +3995,7 @@ export default function App() {
                         setCopiedPython(true);
                         setTimeout(() => setCopiedPython(false), 1800);
                       }}
-                      className="flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-white px-2.5 py-1 rounded text-xs font-bold"
+                      className="flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-white px-2.5 py-1 rounded text-xs font-bold transition"
                     >
                       {copiedPython ? (
                         <Check className="w-3.5 h-3.5 text-emerald-400" />
@@ -3864,9 +4005,18 @@ export default function App() {
                       {copiedPython ? 'Đã sao chép' : 'Copy Python'}
                     </button>
                   </div>
-                  <pre className="code-editor flex-1 overflow-auto text-xs leading-relaxed">
-                    {pythonCode}
-                  </pre>
+                  <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto visible-code-scrollbar bg-slate-900/95 rounded-xl p-3 border border-slate-800 flex font-mono text-xs leading-relaxed">
+                    {/* Cột số thứ tự dòng */}
+                    <div className="select-none pr-3 mr-3 border-r border-slate-700/60 text-slate-500 text-right text-[11px] font-mono shrink-0">
+                      {pythonCode.split('\n').map((_, i) => (
+                        <div key={i}>{i + 1}</div>
+                      ))}
+                    </div>
+                    {/* Nội dung code Python có thể cuộn ngang/dọc xem hết code */}
+                    <pre className="code-editor flex-1 text-emerald-300 overflow-x-auto whitespace-pre font-mono">
+                      {pythonCode}
+                    </pre>
+                  </div>
                 </div>
               )}
 
