@@ -3,6 +3,12 @@
 // Mỗi bài tách riêng: Đề bài (yêu cầu + tiêu chí đạt) · Lý thuyết · Gợi ý · Code khởi đầu · Lời giải
 // Thiết kế bởi thầy Hoàng Ngọc Cảnh — Giáo viên trường THCS & THPT Đinh Thiện Lý
 // =====================================================================================
+import {
+  BIOGLOW_LESSON_SPECS,
+  BIOGLOW_MISSION_RULES,
+  planBlocks,
+  startPoseFor
+} from './bioglowMissions';
 
 export const LEARNING_TRACKS = [
   {
@@ -24,6 +30,12 @@ export const LEARNING_TRACKS = [
     description: 'Mô phỏng nhiệm vụ thi đấu. Lời giải mặc định bị khóa — chỉ có gợi ý.'
   },
   {
+    id: 'bioglow',
+    icon: '🌿',
+    name: 'FLL 2026–27 BIOGLOW — Robot Game ảo',
+    description: 'Chạy ảo từng mission M01–M15 trên thảm BIOGLOW đúng tỉ lệ, chấm theo bảng điểm chính thức.'
+  },
+  {
     id: 'sandbox',
     icon: '🛠',
     name: 'Sa bàn tự do & Bài của giáo viên',
@@ -38,7 +50,8 @@ export const WIN_CONDITIONS = [
   { value: 'return_to_start', label: 'Quay về lại vị trí xuất phát' },
   { value: 'stop_before_obstacle', label: 'Dừng trước vật cản trong khoảng cho phép' },
   { value: 'stop_on_color', label: 'Dừng trên vạch màu chỉ định' },
-  { value: 'cargo_in_zone', label: '3D: Đặt kiện hàng vào vùng đích' }
+  { value: 'cargo_in_zone', label: '3D: Đặt kiện hàng vào vùng đích' },
+  { value: 'bioglow_missions', label: 'FLL BIOGLOW: Chấm điểm mission Robot Game' }
 ];
 
 const HAT = (p) => ({ id: `${p}_hat`, type: 'when_program_starts', params: {} });
@@ -661,8 +674,64 @@ export const CURRICULUM = [
     starterBlocks: [HAT('s1'), MOTORS('s1')],
     solutionBlocks: [HAT('s1s'), MOTORS('s1s')],
     winCondition: 'reach_goal'
-  }
+  },
+
+  // ============================== 🌿 FLL 2026–27 BIOGLOW — ROBOT GAME ẢO ==============================
+  ...buildBioglowLessons()
 ];
+
+// Sinh 16 bài chạy ảo BIOGLOW từ bảng thiết kế trong bioglowMissions.js (lời giải mẫu được lập đường tự động)
+function buildBioglowLessons() {
+  const THEORY = [
+    'Thảm đúng tỉ lệ 200 × 114 cm, lưới 20 cm (cột A–J từ trái, hàng 1–6 từ dưới). Robot xuất phát trong Launch Area.',
+    'Tay cần cổng C (khối "C go shortest path to position"): HẠ = ≤ 20°, NÂNG = ≥ 65°. Phụ kiện gắn ở MŨI robot (cách tâm ~8 cm).',
+    'Hướng: 0° = Đông (sang phải), −90° = Bắc (lên trên), 180° = Tây, 90° = Nam. "move right: 90" quay phải 90°.',
+    'M10 (tổ nhện D6, tổ ốc sên F4) được chấm trong MỌI bài: chạm vào là mất điểm. Kết thúc ngoài Home mất 1 Precision Token.',
+    'Đây là QUY ƯỚC mô phỏng để luyện lập kế hoạch đường đi — cơ chế thật của mô hình LEGO xem trong video Robot Game Missions.'
+  ];
+  return BIOGLOW_LESSON_SPECS.map((spec) => {
+    const p = spec.no.toLowerCase();
+    const start = startPoseFor(spec.start);
+    const ids = spec.missions;
+    const rules = ids.map((id) => ({ id, ...BIOGLOW_MISSION_RULES[id] }));
+    return {
+      id: spec.no,
+      track: 'bioglow',
+      level: `BIOGLOW · ${spec.grid} · ${spec.level}`,
+      title: `${spec.no}. ${spec.title}`,
+      mode: '2D',
+      mapType: 'fll_bioglow',
+      objective: ids.length
+        ? `${rules.map((r) => `${r.id}: ${r.howTo}`).join(' ')} Xuất phát từ Home ${spec.start === 'right' ? 'PHẢI' : 'TRÁI'} và kết thúc trong Home.`
+        : `Tự lập chiến thuật một lượt chạy từ Home trái: cả 15 mission đều được chấm, cần đạt ≥ ${spec.minScore} điểm và kết thúc trong Home.`,
+      requirements: [
+        `Xuất phát trong Launch Area ${spec.start === 'right' ? 'PHẢI (xanh)' : 'TRÁI (đỏ)'}.`,
+        'Dùng khối "C go shortest path to position" để hạ/nâng tay cần.',
+        'Không chạm tổ nhện, tổ ốc sên (M10). Kết thúc trong Home.'
+      ],
+      successCriteria: ids.length
+        ? [...rules.filter((r) => r.id !== 'M10').map((r) => `${r.id} ${r.name}: đạt tối đa`), 'M10 nguyên vẹn', 'Về Home']
+        : [`Tổng điểm ≥ ${spec.minScore}`, 'Về Home'],
+      theory: THEORY,
+      hints: spec.hints,
+      arenaConfig:
+        spec.start === 'right'
+          ? { startPose: start, lines: [], goals: [], obstacles: [], walls: [], colorPatches: [], cargos: [] }
+          : undefined,
+      starterBlocks: [HAT(p), MOTORS(p), { id: `${p}_yaw`, type: 'set_yaw_angle_to_0', params: {} }],
+      solutionBlocks: [
+        HAT(`${p}s`),
+        MOTORS(`${p}s`),
+        { id: `${p}s_yaw`, type: 'set_yaw_angle_to_0', params: {} },
+        ...planBlocks(`${p}s`, start, spec.path)
+      ],
+      winCondition: 'bioglow_missions',
+      winParams: { missions: ids, dock: spec.dock, minScore: spec.minScore },
+      requiredBlocks: ['motor_go_to_position'].filter(() => spec.path.some((a) => a.arm !== undefined)),
+      lockSolution: true
+    };
+  });
+}
 
 // Chuyển bài cũ (chỉ có defaultBlocks) sang cấu trúc mới
 export function migrateMission(m) {

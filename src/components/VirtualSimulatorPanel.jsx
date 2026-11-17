@@ -39,6 +39,7 @@ import {
   BIOGLOW_LINES,
   BIOGLOW_MODELS
 } from '../data/bioglow';
+import { MISSION_ZONES } from '../data/bioglowMissions';
 
 const PATCH_COLORS = [
   { name: 'BLACK', label: 'Đen (0)', hex: '#0f172a', reflection: 12 },
@@ -223,7 +224,8 @@ export default function VirtualSimulatorPanel({
   onSetStartPose,
   onFloorCanvasReady,
   onCargoStatusChange,
-  onApplyMeasurement
+  onApplyMeasurement,
+  bioglowScoredIds = []
 }) {
   const canvas2DRef = useRef(null);
   const arenaContainerRef = useRef(null);
@@ -963,6 +965,18 @@ export default function VirtualSimulatorPanel({
         ctx.fillText(tag, tx + 3, ty);
       });
 
+      // Ô khảo sát của M01 (vùng thả bản đồ LiDAR)
+      const sv = MISSION_ZONES.M01_SURVEY;
+      ctx.save();
+      ctx.translate(sv.x + sv.w / 2, sv.y + sv.h / 2);
+      ctx.rotate((25 * Math.PI) / 180);
+      ctx.strokeStyle = '#0ea5e9';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([3, 2]);
+      ctx.strokeRect(-9, -8, 18, 16);
+      ctx.restore();
+      ctx.setLineDash([]);
+
       // Viền tường bàn thi đấu
       ctx.strokeStyle = '#0f172a';
       ctx.lineWidth = 2;
@@ -1315,6 +1329,28 @@ export default function VirtualSimulatorPanel({
       ctx.setLineDash([]);
     }
 
+    // 4b. Thảm BIOGLOW: tô xanh các mission đã ghi điểm (vẽ SAU khi chụp mặt sàn → không ảnh hưởng cảm biến màu)
+    if (mapType === 'fll_bioglow' && bioglowScoredIds.length > 0) {
+      const zoneKeys = {
+        M01: ['M01'], M02: ['M02'], M03: ['M03'], M04: ['M04'], M05: ['M05'], M06: ['M06'], M07: ['M07'],
+        M08: ['M08'], M09: ['M09'], M11: ['M11'], M12: ['M12', 'M12_POST'], M13: ['DOCK1'], M14: ['DOCK3'], M15: ['DOCK2']
+      };
+      bioglowScoredIds.forEach((id) => {
+        (zoneKeys[id] || []).forEach((k) => {
+          const z = MISSION_ZONES[k];
+          if (!z) return;
+          ctx.fillStyle = 'rgba(16, 185, 129, 0.22)';
+          ctx.strokeStyle = '#059669';
+          ctx.lineWidth = 2;
+          ctx.fillRect(z.x, z.y, z.w, z.h);
+          ctx.strokeRect(z.x, z.y, z.w, z.h);
+          ctx.fillStyle = '#047857';
+          ctx.font = 'bold 11px Inter';
+          ctx.fillText('✓', z.x + z.w - 10, z.y + 11);
+        });
+      });
+    }
+
     // 5. Vẽ Robot LEGO SPIKE Prime theo đúng tỉ lệ thực tế (Driving Base chuẩn tỉ lệ)
     ctx.save();
     ctx.translate(robotPose.x, robotPose.y);
@@ -1381,6 +1417,30 @@ export default function VirtualSimulatorPanel({
     ctx.fillStyle = curDetectedColor === 'BLACK' ? '#ffffff' : '#0f172a';
     ctx.font = 'bold 6.5px Inter';
     ctx.fillText('D', sensorOffset - 2.5, 2);
+
+    // Tay cần cổng C ở mũi robot (thảm FLL): HẠ = thanh cam chạm thảm, NÂNG = ký hiệu ▲
+    if (mapType === 'fll_bioglow') {
+      const arm = robotPose.armAngle ?? 35;
+      if (arm <= 20) {
+        ctx.fillStyle = '#f97316';
+        ctx.fillRect(sensorOffset + 2, -11, 6, 22);
+      } else if (arm >= 65) {
+        ctx.fillStyle = '#7c3aed';
+        ctx.beginPath();
+        ctx.moveTo(sensorOffset + 9, 0);
+        ctx.lineTo(sensorOffset + 3, -6);
+        ctx.lineTo(sensorOffset + 3, 6);
+        ctx.closePath();
+        ctx.fill();
+      } else {
+        ctx.strokeStyle = '#f97316';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(sensorOffset + 4, -9);
+        ctx.lineTo(sensorOffset + 4, 9);
+        ctx.stroke();
+      }
+    }
 
     ctx.restore();
 
@@ -1573,6 +1633,7 @@ export default function VirtualSimulatorPanel({
     simMode,
     mapType,
     robotPose,
+    bioglowScoredIds,
     safeArena,
     isDrawing,
     drawingTick,

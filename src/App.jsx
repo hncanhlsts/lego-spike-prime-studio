@@ -83,6 +83,7 @@ import {
   getPxPerCm
 } from './utils/simPhysics';
 import FllMatchScorerModal from './components/FllMatchScorerModal';
+import { evaluateBioglowRun } from './data/bioglowMissions';
 import { SpikeBluetoothManager } from './utils/bluetoothSpike';
 
 const COLOR_SWATCHES = [
@@ -171,6 +172,8 @@ export default function App() {
   const [showEncyclopediaModal, setShowEncyclopediaModal] = useState(false);
   const [showUserGuideModal, setShowUserGuideModal] = useState(false);
   const [showScorerModal, setShowScorerModal] = useState(false);
+  // Các mission BIOGLOW đã ghi điểm ở lượt chạy gần nhất (tô xanh trên thảm)
+  const [bioglowScoredIds, setBioglowScoredIds] = useState([]);
 
   // Thanh đề bài & Gợi ý cho Học sinh
   const [showBriefBar, setShowBriefBar] = useState(true);
@@ -1067,6 +1070,7 @@ export default function App() {
     redoStackRef.current = [];
     setRevealedHintIndex(0);
     setGradingResult(null);
+    setBioglowScoredIds([]);
 
     setSimMode(lesson.mode || '2D');
     const nextMap =
@@ -1453,6 +1457,46 @@ export default function App() {
     const insideGoal = targetGoals.some((g) => ptInGoal(finalPose, g));
 
     switch (win) {
+      case 'bioglow_missions': {
+        // Chấm mission Robot Game FLL BIOGLOW theo bảng điểm chính thức (quy ước mô phỏng trong bioglowMissions.js)
+        const wp = currentLesson.winParams || {};
+        const res = evaluateBioglowRun(
+          { snaps: finalPose.snaps || [], trail, finalPose, collision: collisionOccurred },
+          { missions: wp.missions, dock: wp.dock, dockType: wp.dockType }
+        );
+        const listed = Array.isArray(wp.missions) && wp.missions.length > 0;
+        for (const m of res.missions) {
+          if (listed || m.points > 0 || m.id === 'M10') {
+            for (const c of m.checks) {
+              criteriaResults.push({
+                label: `${m.id} · ${c.label}${c.pts ? ` (${c.pts}đ)` : ''}`,
+                passed: c.ok
+              });
+            }
+          }
+        }
+        criteriaResults.push({
+          label: `Kết thúc trong Home (Precision Token còn ${res.tokens}/6 → ${res.tokenPoints}đ)`,
+          passed: res.atHome
+        });
+        setBioglowScoredIds(res.missions.filter((m) => m.points > 0).map((m) => m.id));
+        const target = listed ? res.missions : res.missions.filter((m) => m.points > 0);
+        const allFull = target.every((m) => m.points === m.max);
+        passed = wp.minScore ? res.total >= wp.minScore && res.atHome : allFull && res.atHome && !collisionOccurred;
+        const summary = res.missions
+          .filter((m) => listed || m.points > 0)
+          .map((m) => `${m.id} ${m.points}/${m.max}`)
+          .join(' · ');
+        reason = `Điểm Robot Game ảo: ${res.total} (mission ${res.missionPoints} + token ${res.tokenPoints}). ${summary}.${
+          passed
+            ? ''
+            : wp.minScore
+            ? ` Cần ≥ ${wp.minScore} điểm và kết thúc trong Home.`
+            : ' Chưa đạt tối đa — xem các mục ✕ bên dưới.'
+        }`;
+        break;
+      }
+
       case 'visit_in_order': {
         // Duyệt vết di chuyển: robot phải ghé lần lượt từng trạm theo đúng thứ tự
         const path = [...(trail || []), finalPose];
@@ -1677,8 +1721,10 @@ export default function App() {
         armAngle: 35,
         gripperClosed: false,
         cargoGrabbed: false,
-        trail: [{ x: sp.x, y: sp.y }]
+        trail: [{ x: sp.x, y: sp.y }],
+        snaps: []
       };
+      setBioglowScoredIds([]);
       setRobotPose({ ...pose });
       setTelemetry((prev) => ({
         ...prev,
@@ -1725,7 +1771,7 @@ export default function App() {
       setRobotPose({ ...pose });
       setTelemetry((prev) => ({
         ...prev,
-        gyroYaw: pose.angle,
+        gyroYaw: pose.angle - (pose.yawOffset || 0),
         distanceSensor: { cm: pose.distanceCm },
         colorSensor: live.detectedColor || prev.colorSensor
       }));
@@ -1949,7 +1995,7 @@ export default function App() {
               setRobotPose({ ...pose });
               setTelemetry((prev) => ({
                 ...prev,
-                gyroYaw: Math.round(pose.angle),
+                gyroYaw: Math.round(pose.angle - (pose.yawOffset || 0)),
                 distanceSensor: { cm: pose.distanceCm },
                 colorSensor: live.detectedColor || prev.colorSensor,
                 motors: {
@@ -1983,7 +2029,7 @@ export default function App() {
               setRobotPose({ ...pose });
               setTelemetry((prev) => ({
                 ...prev,
-                gyroYaw: pose.angle,
+                gyroYaw: pose.angle - (pose.yawOffset || 0),
                 distanceSensor: { cm: pose.distanceCm }
               }));
               await sleep(25);
@@ -2128,7 +2174,7 @@ export default function App() {
                 setRobotPose({ ...pose });
                 setTelemetry((prev) => ({
                   ...prev,
-                  gyroYaw: pose.angle,
+                  gyroYaw: pose.angle - (pose.yawOffset || 0),
                   distanceSensor: { cm: pose.distanceCm },
                   colorSensor: live.detectedColor || prev.colorSensor
                 }));
@@ -2205,7 +2251,7 @@ export default function App() {
                   setRobotPose({ ...pose });
                   setTelemetry((prev) => ({
                     ...prev,
-                    gyroYaw: pose.angle,
+                    gyroYaw: pose.angle - (pose.yawOffset || 0),
                     colorSensor: live.detectedColor || {
                       color: i % 2 === 0 ? 'BLACK' : 'WHITE',
                       reflection: i % 2 === 0 ? 14 : 68
@@ -2229,7 +2275,7 @@ export default function App() {
 
                   setTelemetry((prev) => ({
                     ...prev,
-                    gyroYaw: pose.angle,
+                    gyroYaw: pose.angle - (pose.yawOffset || 0),
                     colorSensor: live.detectedColor || {
                       color: i % 2 === 0 ? 'BLACK' : 'WHITE',
                       reflection: i % 2 === 0 ? 14 : 72
@@ -2380,7 +2426,7 @@ export default function App() {
               setRobotPose({ ...pose });
               setTelemetry((prev) => ({
                 ...prev,
-                gyroYaw: pose.angle,
+                gyroYaw: pose.angle - (pose.yawOffset || 0),
                 distanceSensor: { cm: pose.distanceCm },
                 colorSensor: live.detectedColor || prev.colorSensor
               }));
@@ -2390,8 +2436,8 @@ export default function App() {
           }
 
           case 'set_yaw_angle_to_0':
-            pose.angle = 0;
-            setRobotPose({ ...pose });
+            // Chỉ đặt MỐC 0 cho con quay (như Hub thật) — robot KHÔNG xoay
+            pose.yawOffset = pose.angle;
             setTelemetry((prev) => ({ ...prev, gyroYaw: 0 }));
             setStatusLog('set yaw angle to 0');
             await sleep(150);
@@ -2428,6 +2474,15 @@ export default function App() {
           default:
             await sleep(160);
         }
+
+        // Nhật ký trạng thái sau mỗi khối (vị trí, hướng, góc tay cần) — dùng để chấm mission FLL
+        pose.snaps.push({
+          x: pose.x,
+          y: pose.y,
+          angle: pose.angle,
+          arm: pose.armAngle,
+          blockId: block.id
+        });
       }
     };
 
@@ -4119,6 +4174,7 @@ export default function App() {
                 <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
                   <div className="flex-1 min-h-0 overflow-hidden">
                     <VirtualSimulatorPanel
+                      bioglowScoredIds={bioglowScoredIds}
                       simMode={simMode}
                       setSimMode={setSimMode}
                       mapType={mapType}
