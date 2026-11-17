@@ -348,7 +348,25 @@ const PRECISION_POINTS = [0, 10, 15, 25, 35, 50, 50];
 
 // Chấm một lượt chạy ảo trên thảm BIOGLOW
 // run: { snaps, trail, finalPose, collision }  ·  opts: { missions: ['M02', ...], dock, dockType }
-export function evaluateBioglowRun(run, opts = {}) {
+export function evaluateBioglowRun(rawRun, opts = {}) {
+  // Giới hạn thời gian trận (mặc định 150 s): thao tác xảy ra sau thời điểm này không được tính,
+  // robot coi như dừng tại vị trí lúc hết giờ. snaps[i].t = giây thực tế ước tính khi khối i kết thúc.
+  const limit = opts.timeLimit ?? 150;
+  const allSnaps = rawRun.snaps || [];
+  const totalTime = allSnaps.length ? allSnaps[allSnaps.length - 1].t ?? 0 : 0;
+  const overTime = totalTime > limit;
+  const inTime = allSnaps.filter((s) => (s.t ?? 0) <= limit);
+  const lastIn = inTime[inTime.length - 1];
+  const run = {
+    ...rawRun,
+    snaps: inTime,
+    finalPose: overTime ? (lastIn ? { x: lastIn.x, y: lastIn.y, angle: lastIn.angle } : rawRun.startPose || rawRun.finalPose) : rawRun.finalPose
+  };
+  const res = evaluateBioglowRunInner(run, opts);
+  return { ...res, totalTime, overTime, timeLimit: limit };
+}
+
+function evaluateBioglowRunInner(run, opts = {}) {
   const ids = opts.missions && opts.missions.length ? opts.missions : ALL_MISSION_IDS;
   const list = ids.includes('M10') ? ids : [...ids, 'M10']; // M10 luôn được chấm
   const fpEnd = run.finalPose || {};

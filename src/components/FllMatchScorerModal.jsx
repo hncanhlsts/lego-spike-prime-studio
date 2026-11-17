@@ -13,8 +13,233 @@ import {
   defaultBioglowScoreState,
   scoreBioglow
 } from '../data/bioglow';
+import { fmtClock } from '../utils/matchTime';
 
 const HISTORY_KEY = 'fll_bioglow_score_history_v1';
+const PLAN_KEY = 'fll_match_plan_v1';
+const LAST_SIM_RUN_KEY = 'fll_bioglow_last_sim_run';
+const PRECISION_PTS = [0, 10, 15, 25, 35, 50, 50];
+
+const readJson = (key, fallback) => {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+};
+const writeJson = (key, val) => {
+  try {
+    localStorage.setItem(key, JSON.stringify(val));
+  } catch {
+    // trình duyệt chặn lưu trữ — chỉ giữ trong phiên
+  }
+};
+
+// ---------- KẾ HOẠCH TRẬN 2:30: ghép nhiều lượt chạy (run) ----------
+function MatchPlanner() {
+  const [plan, setPlan] = useState(() => readJson(PLAN_KEY, { changeover: 8, runs: [] }));
+  const [manual, setManual] = useState({ title: '', seconds: '', points: '' });
+  const [note, setNote] = useState('');
+  const save = (next) => {
+    setPlan(next);
+    writeJson(PLAN_KEY, next);
+  };
+
+  const addFromSim = () => {
+    const last = readJson(LAST_SIM_RUN_KEY, null);
+    if (!last) {
+      setNote('Chưa có lượt chạy nào trên thảm BIOGLOW. Hãy chạy một bài B01–B16 trên sa bàn trước.');
+      return;
+    }
+    save({ ...plan, runs: [...plan.runs, { id: Date.now(), ...last }] });
+    setNote(`Đã thêm "${last.title}" (${fmtClock(last.seconds)}).`);
+  };
+  const addManual = () => {
+    const sec = Number(manual.seconds);
+    if (!manual.title.trim() || !(sec > 0)) {
+      setNote('Nhập tên lượt chạy và số giây đo được trên robot thật.');
+      return;
+    }
+    save({
+      ...plan,
+      runs: [
+        ...plan.runs,
+        { id: Date.now(), title: manual.title.trim(), seconds: sec, atHome: true, missions: {}, manualPoints: Number(manual.points) || 0 }
+      ]
+    });
+    setManual({ title: '', seconds: '', points: '' });
+    setNote('');
+  };
+  const move = (i, d) => {
+    const runs = [...plan.runs];
+    const j = i + d;
+    if (j < 0 || j >= runs.length) return;
+    [runs[i], runs[j]] = [runs[j], runs[i]];
+    save({ ...plan, runs });
+  };
+  const remove = (i) => save({ ...plan, runs: plan.runs.filter((_, k) => k !== i) });
+
+  // Dòng thời gian: lượt 1 bắt đầu ở 0:00; giữa các lượt cộng thời gian về Home + thay phụ kiện + launch lại
+  let clock = 0;
+  const timeline = plan.runs.map((r, i) => {
+    const start = i === 0 ? 0 : clock + Number(plan.changeover || 0);
+    const end = start + Number(r.seconds || 0);
+    clock = end;
+    return { ...r, start, end, fits: end <= BIOGLOW_MATCH_SECONDS };
+  });
+  const counted = timeline.filter((r) => r.fits);
+  // Điểm: mỗi mission lấy lượt chạy tốt nhất (không cộng trùng); M10 tính theo lượt tệ nhất (chạm 1 lần là mất)
+  const best = {};
+  let m10 = 20;
+  let manualPts = 0;
+  counted.forEach((r) => {
+    Object.entries(r.missions || {}).forEach(([id, pts]) => {
+      if (id === 'M10') m10 = Math.min(m10, pts);
+      else best[id] = Math.max(best[id] || 0, pts);
+    });
+    manualPts += r.manualPoints || 0;
+  });
+  const missionPts = Object.values(best).reduce((a, b) => a + b, 0) + manualPts;
+  const notHome = timeline.filter((r) => !r.atHome).length + timeline.filter((r) => !r.fits).length;
+  const tokens = Math.max(0, 6 - notHome);
+  const total = missionPts + m10 + PRECISION_PTS[tokens];
+  const used = timeline.length ? timeline[timeline.length - 1].end : 0;
+
+  return (
+    <div className="bg-white rounded-xl border border-emerald-300 shadow-sm p-3 mb-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+        <h4 className="text-sm font-extrabold text-slate-900">🗺 Kế hoạch trận 2:30 — ghép các lượt chạy</h4>
+        <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700">
+          Thay phụ kiện giữa 2 lượt
+          <input
+            type="number"
+            min="0"
+            value={plan.changeover}
+            onChange={(e) => save({ ...plan, changeover: Number(e.target.value) })}
+            className="w-14 h-8 px-2 rounded-lg border border-slate-300 text-xs"
+          />
+          giây
+        </label>
+      </div>
+
+      {/* Thanh thời gian 0:00 → 2:30 */}
+      <div className="relative h-8 rounded-lg bg-slate-100 border border-slate-200 overflow-hidden mb-2">
+        {timeline.map((r, i) => (
+          <div
+            key={r.id}
+            className={`absolute top-0 h-full flex items-center justify-center text-[11px] font-extrabold text-white truncate px-1 ${
+              r.fits ? (i % 2 ? 'bg-emerald-600' : 'bg-emerald-700') : 'bg-rose-600'
+            }`}
+            style={{
+              left: `${Math.min(100, (r.start / BIOGLOW_MATCH_SECONDS) * 100)}%`,
+              width: `${Math.max(1, Math.min(100, ((r.end - r.start) / BIOGLOW_MATCH_SECONDS) * 100))}%`
+            }}
+            title={`${r.title}: ${fmtClock(r.start)} → ${fmtClock(r.end)}`}
+          >
+            R{i + 1}
+          </div>
+        ))}
+      </div>
+      <div className="flex justify-between text-xs text-slate-600 mb-2">
+        <span>0:00</span>
+        <span className={used > BIOGLOW_MATCH_SECONDS ? 'text-rose-700 font-bold' : 'font-bold text-slate-800'}>
+          Đã dùng {fmtClock(used)} · còn {fmtClock(Math.max(0, BIOGLOW_MATCH_SECONDS - used))}
+        </span>
+        <span>2:30</span>
+      </div>
+
+      {timeline.length > 0 && (
+        <ul className="space-y-1 mb-2">
+          {timeline.map((r, i) => (
+            <li key={r.id} className="flex flex-wrap items-center gap-2 text-xs border-b border-slate-100 pb-1">
+              <span className="font-extrabold w-7">R{i + 1}</span>
+              <span className="flex-1 min-w-[140px] truncate" title={r.title}>
+                {r.title}
+              </span>
+              <span className="font-mono">
+                {fmtClock(r.start)}→{fmtClock(r.end)}
+              </span>
+              <span className={r.fits ? 'text-emerald-700 font-bold' : 'text-rose-700 font-bold'}>
+                {r.fits ? '✓ kịp' : '✕ quá 2:30'}
+              </span>
+              {!r.atHome && <span className="text-amber-700 font-bold">không về Home (−1 token)</span>}
+              <span className="text-slate-500">
+                {Object.entries(r.missions || {})
+                  .filter(([id, p]) => p > 0 && id !== 'M10')
+                  .map(([id, p]) => `${id} ${p}`)
+                  .join(' · ') || (r.manualPoints ? `${r.manualPoints}đ` : '')}
+              </span>
+              <span className="flex gap-1">
+                <button type="button" onClick={() => move(i, -1)} className="h-7 w-7 rounded border border-slate-300" title="Lên">
+                  ↑
+                </button>
+                <button type="button" onClick={() => move(i, 1)} className="h-7 w-7 rounded border border-slate-300" title="Xuống">
+                  ↓
+                </button>
+                <button type="button" onClick={() => remove(i)} className="h-7 w-7 rounded border border-rose-300 text-rose-700" title="Xóa">
+                  ✕
+                </button>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={addFromSim}
+          className="h-8 px-3 rounded-lg bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-extrabold"
+        >
+          + Thêm lượt vừa chạy trên sa bàn
+        </button>
+        <span className="text-xs text-slate-500">hoặc nhập lượt đo trên robot thật:</span>
+        <input
+          value={manual.title}
+          onChange={(e) => setManual({ ...manual, title: e.target.value })}
+          placeholder="Tên lượt (VD: Run 2 trái)"
+          className="h-8 px-2 rounded-lg border border-slate-300 text-xs w-40"
+        />
+        <input
+          type="number"
+          value={manual.seconds}
+          onChange={(e) => setManual({ ...manual, seconds: e.target.value })}
+          placeholder="giây"
+          className="h-8 px-2 rounded-lg border border-slate-300 text-xs w-16"
+        />
+        <input
+          type="number"
+          value={manual.points}
+          onChange={(e) => setManual({ ...manual, points: e.target.value })}
+          placeholder="điểm"
+          className="h-8 px-2 rounded-lg border border-slate-300 text-xs w-16"
+        />
+        <button type="button" onClick={addManual} className="h-8 px-3 rounded-lg border border-slate-300 text-xs font-bold">
+          Thêm
+        </button>
+      </div>
+      {note && <p className="text-xs text-slate-600 mt-1.5">{note}</p>}
+
+      {timeline.length > 0 && (
+        <div className="mt-2 text-xs bg-slate-900 text-white rounded-lg px-3 py-2 flex flex-wrap gap-x-4 gap-y-1">
+          <span>
+            Mission: <strong className="text-amber-300">{missionPts}</strong>
+          </span>
+          <span>
+            M10: <strong className="text-amber-300">{m10}</strong>
+          </span>
+          <span>
+            Token còn {tokens}/6: <strong className="text-amber-300">{PRECISION_PTS[tokens]}</strong>
+          </span>
+          <span>
+            Ước tính trận (chưa gồm Equipment Inspection 20đ): <strong className="text-amber-300 text-sm">{total}</strong>
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function loadHistory() {
   try {
@@ -314,8 +539,9 @@ export default function FllMatchScorerModal({ onClose }) {
             </div>
           </div>
 
-          {/* Cột phải: phiếu chấm từng mission */}
+          {/* Cột phải: kế hoạch trận + phiếu chấm từng mission */}
           <div className="flex-1 overflow-y-auto p-4 bg-slate-100/60">
+            <MatchPlanner />
             <div className="mb-3 flex items-start gap-2 text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-xl p-2.5">
               <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600" />
               <span>

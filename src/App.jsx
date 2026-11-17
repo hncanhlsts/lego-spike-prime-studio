@@ -84,6 +84,7 @@ import {
 } from './utils/simPhysics';
 import FllMatchScorerModal from './components/FllMatchScorerModal';
 import { evaluateBioglowRun } from './data/bioglowMissions';
+import { estimateBlockSeconds, fmtClock, MATCH_SECONDS } from './utils/matchTime';
 import { SpikeBluetoothManager } from './utils/bluetoothSpike';
 
 const COLOR_SWATCHES = [
@@ -178,6 +179,8 @@ export default function App() {
   const [showScorerModal, setShowScorerModal] = useState(false);
   // Các mission BIOGLOW đã ghi điểm ở lượt chạy gần nhất (tô xanh trên thảm)
   const [bioglowScoredIds, setBioglowScoredIds] = useState([]);
+  // Thời gian thật ước tính của lượt chạy hiện tại (giây) — đồng hồ trận FLL 2:30
+  const [simMatchTime, setSimMatchTime] = useState(0);
 
   // Thanh đề bài & Gợi ý cho Học sinh
   const [showBriefBar, setShowBriefBar] = useState(true);
@@ -1075,6 +1078,7 @@ export default function App() {
     setRevealedHintIndex(0);
     setGradingResult(null);
     setBioglowScoredIds([]);
+    setSimMatchTime(0);
 
     setSimMode(lesson.mode || '2D');
     const nextMap =
@@ -1484,15 +1488,41 @@ export default function App() {
           label: `Kết thúc trong Home (Precision Token còn ${res.tokens}/6 → ${res.tokenPoints}đ)`,
           passed: res.atHome
         });
+        criteriaResults.push({
+          label: `⏱ Thời gian thật ước tính ${fmtClock(res.totalTime)} / ${fmtClock(res.timeLimit)}${
+            res.overTime ? ' — QUÁ GIỜ: thao tác sau 2:30 không được tính' : ''
+          }`,
+          passed: !res.overTime
+        });
+        // Lưu tóm tắt lượt chạy để ghép vào "Kế hoạch trận" trong bảng Tính Điểm FLL
+        try {
+          localStorage.setItem(
+            'fll_bioglow_last_sim_run',
+            JSON.stringify({
+              lessonId: currentLesson.id,
+              title: currentLesson.title,
+              seconds: Math.round(res.totalTime * 10) / 10,
+              atHome: res.atHome,
+              missions: Object.fromEntries(res.missions.map((m) => [m.id, m.points])),
+              at: Date.now()
+            })
+          );
+        } catch {
+          // bỏ qua nếu trình duyệt chặn lưu trữ
+        }
         setBioglowScoredIds(res.missions.filter((m) => m.points > 0).map((m) => m.id));
         const target = listed ? res.missions : res.missions.filter((m) => m.points > 0);
         const allFull = target.every((m) => m.points === m.max);
-        passed = wp.minScore ? res.total >= wp.minScore && res.atHome : allFull && res.atHome && !collisionOccurred;
+        passed =
+          !res.overTime &&
+          (wp.minScore ? res.total >= wp.minScore && res.atHome : allFull && res.atHome && !collisionOccurred);
         const summary = res.missions
           .filter((m) => listed || m.points > 0)
           .map((m) => `${m.id} ${m.points}/${m.max}`)
           .join(' · ');
-        reason = `Điểm Robot Game ảo: ${res.total} (mission ${res.missionPoints} + token ${res.tokenPoints}). ${summary}.${
+        reason = `Điểm Robot Game ảo: ${res.total} (mission ${res.missionPoints} + token ${res.tokenPoints}) · ⏱ ${fmtClock(
+          res.totalTime
+        )} thời gian thật. ${summary}.${
           passed
             ? ''
             : wp.minScore
@@ -1727,9 +1757,11 @@ export default function App() {
         gripperClosed: false,
         cargoGrabbed: false,
         trail: [{ x: sp.x, y: sp.y }],
-        snaps: []
+        snaps: [],
+        t: 0
       };
       setBioglowScoredIds([]);
+      setSimMatchTime(0);
       setRobotPose({ ...pose });
       setTelemetry((prev) => ({
         ...prev,
@@ -1787,6 +1819,7 @@ export default function App() {
       for (const block of blockList || []) {
         if (stopFlagRef.current) break;
         setActiveBlockId(block.id);
+        const armBefore = pose.armAngle;
 
         if (isStepModeRef.current) {
           setIsWaitingForStep(true);
@@ -2483,8 +2516,13 @@ export default function App() {
             await sleep(160);
         }
 
+        // Thời gian THẬT ước tính (robot SPIKE thật chậm hơn sa bàn) → đồng hồ trận 2:30
+        pose.t += estimateBlockSeconds(block, { moveSpeed, armBefore, armAfter: pose.armAngle });
+        setSimMatchTime(pose.t);
+
         // Nhật ký trạng thái sau mỗi khối (vị trí, hướng, góc tay cần) — dùng để chấm mission FLL
         pose.snaps.push({
+          t: pose.t,
           x: pose.x,
           y: pose.y,
           angle: pose.angle,
@@ -4126,6 +4164,22 @@ export default function App() {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                  {/* ĐỒNG HỒ TRẬN FLL: thời gian THẬT ước tính của lượt chạy so với 2:30 */}
+                  {mapType === 'fll_bioglow' && (
+                    <span
+                      className={`inline-flex items-center gap-1 h-8 px-2.5 rounded-lg border text-xs font-extrabold font-mono tabular-nums ${
+                        simMatchTime > MATCH_SECONDS
+                          ? 'bg-rose-50 text-rose-700 border-rose-300'
+                          : simMatchTime > MATCH_SECONDS - 30
+                          ? 'bg-amber-50 text-amber-800 border-amber-300'
+                          : 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                      }`}
+                      title="Thời gian robot THẬT ước tính cần để chạy chương trình (sa bàn chạy nhanh hơn thực tế). Trận FLL dài 2:30."
+                    >
+                      <Timer className="w-3.5 h-3.5" />
+                      {fmtClock(simMatchTime)} / 2:30
+                    </span>
+                  )}
                   {/* CHỌN ĐỘ RỘNG KHUNG SA BÀN (ẩn ở bố cục tab màn hình hẹp) */}
                   <label
                     className={`items-center gap-1 text-xs font-bold text-slate-600 ${isCompact ? 'hidden' : 'flex'}`}
