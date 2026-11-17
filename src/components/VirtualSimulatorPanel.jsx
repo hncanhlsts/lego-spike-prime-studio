@@ -39,7 +39,7 @@ import {
   BIOGLOW_LINES,
   BIOGLOW_MODELS
 } from '../data/bioglow';
-import { MISSION_ZONES } from '../data/bioglowMissions';
+import { MISSION_ZONES, M04_LOOPS } from '../data/bioglowMissions';
 
 const PATCH_COLORS = [
   { name: 'BLACK', label: 'Đen (0)', hex: '#0f172a', reflection: 12 },
@@ -225,7 +225,8 @@ export default function VirtualSimulatorPanel({
   onFloorCanvasReady,
   onCargoStatusChange,
   onApplyMeasurement,
-  bioglowScoredIds = []
+  bioglowScoredIds = [],
+  bioglowKatydid = 'center'
 }) {
   const canvas2DRef = useRef(null);
   const arenaContainerRef = useRef(null);
@@ -953,7 +954,7 @@ export default function VirtualSimulatorPanel({
         ctx.strokeRect(m.x, m.y, m.w, m.h);
         ctx.setLineDash([]);
         ctx.font = 'bold 8px Inter';
-        const tag = m.dock ? 'DOCK' : m.id.replace('M', '');
+        const tag = m.dock ? m.tag || 'DOCK' : m.id.replace('M', '');
         const tw = ctx.measureText(tag).width + 6;
         const tx = Math.min(F.x + F.w - tw - 1, m.x + m.w / 2 - tw / 2);
         const ty = m.y + m.h + 11 > F.y + F.h ? m.y - 3 : m.y + m.h + 10;
@@ -1329,6 +1330,23 @@ export default function VirtualSimulatorPanel({
       ctx.setLineDash([]);
     }
 
+    // 4a. Thảm BIOGLOW: 3 vòng treo của tổ M04 (vòng vàng = katydid, vòng xanh = lá)
+    if (mapType === 'fll_bioglow') {
+      Object.entries(M04_LOOPS).forEach(([pos, lx]) => {
+        const isKat = pos === bioglowKatydid;
+        ctx.beginPath();
+        ctx.arc(lx, 47, 4.5, 0, Math.PI * 2);
+        ctx.fillStyle = isKat ? '#facc15' : '#22c55e';
+        ctx.fill();
+        ctx.strokeStyle = isKat ? '#a16207' : '#166534';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.fillStyle = '#0f172a';
+        ctx.font = 'bold 6px Inter';
+        ctx.fillText(isKat ? 'K' : 'L', lx - 2, 49);
+      });
+    }
+
     // 4b. Thảm BIOGLOW: tô xanh các mission đã ghi điểm (vẽ SAU khi chụp mặt sàn → không ảnh hưởng cảm biến màu)
     if (mapType === 'fll_bioglow' && bioglowScoredIds.length > 0) {
       const zoneKeys = {
@@ -1634,6 +1652,7 @@ export default function VirtualSimulatorPanel({
     mapType,
     robotPose,
     bioglowScoredIds,
+    bioglowKatydid,
     safeArena,
     isDrawing,
     drawingTick,

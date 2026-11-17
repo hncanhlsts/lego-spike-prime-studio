@@ -66,9 +66,11 @@ export const BIOGLOW_MODELS = [
   { id: 'M11', name: 'Window to the Past', x: 341, y: 114, w: 26, h: 28, color: '#7c3aed' },
   { id: 'M12', name: 'Forest Elder', x: 467, y: 82, w: 16, h: 17, color: '#166534' },
   { id: 'M12', name: 'Post', x: 472, y: 131, w: 8, h: 16, color: '#166534' },
-  { id: 'DOCK1', name: 'Dock (M13–15)', x: 447, y: 8, w: 35, h: 36, color: '#dc2626', dock: true },
-  { id: 'DOCK2', name: 'Dock (M13–15)', x: 249, y: 102, w: 22, h: 35, color: '#dc2626', dock: true },
-  { id: 'DOCK3', name: 'Dock (M13–15)', x: 315, y: 226, w: 22, h: 33, color: '#dc2626', dock: true }
+  // 3 dock đặt mô hình M13–M15 (đội tự chọn). Loại dock suy ra từ hình nền thảm trong Field Setup Reference Guide:
+  // Mine = góc trên phải (nền đất cam, đá), Farm = giữa sân (ruộng), City = mép dưới (đường, bến cảng).
+  { id: 'DOCK1', name: 'Mine dock', dockType: 'mine', tag: 'MINE', x: 447, y: 8, w: 35, h: 36, color: '#dc2626', dock: true },
+  { id: 'DOCK2', name: 'Farm dock', dockType: 'farm', tag: 'FARM', x: 249, y: 102, w: 22, h: 35, color: '#dc2626', dock: true },
+  { id: 'DOCK3', name: 'City dock', dockType: 'city', tag: 'CITY', x: 315, y: 226, w: 22, h: 33, color: '#dc2626', dock: true }
 ];
 
 // Vùng "ghé mission" để chấm bài trên sa bàn: mở rộng quanh mô hình 10 px (≈ 4 cm)

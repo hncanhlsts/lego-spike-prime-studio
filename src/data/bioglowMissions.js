@@ -77,6 +77,13 @@ const armUpIn = (zone) => (s) => s.arm >= ARM_UP && inBox(front(s), zone);
 const facingIn = (zone, heading, tol = 20) => (s) => inBox(front(s), zone) && angDiff(s.angle, heading) <= tol;
 const touched = (trail, box) => (trail || []).some((p) => inBox(p, box));
 
+// 3 vòng treo của tổ M04 (tọa độ x trên sa bàn, cách nhau ≈ 5 cm). Mũi robot phải cách tâm vòng ≤ 5 px (≈ 2 cm).
+export const M04_LOOPS = { left: 45, center: 56, right: 68 };
+const loopAt = (pt) => {
+  for (const [k, x] of Object.entries(M04_LOOPS)) if (Math.abs(pt.x - x) <= 5) return k;
+  return null;
+};
+
 // ---------- QUY ƯỚC MÔ PHỎNG & ĐIỂM CỦA 15 MISSION ----------
 // Mỗi mission: evaluate(run, opts) → { points, max, checks: [{ label, ok, pts }] }
 export const BIOGLOW_MISSION_RULES = {
@@ -84,13 +91,13 @@ export const BIOGLOW_MISSION_RULES = {
     name: 'Drone Survey',
     home: 'left',
     max: 30,
-    howTo: 'Mũi robot vào vùng M01, NÂNG tay cần (phóng drone). Bonus: sau đó tới ô khảo sát (ô vuông nghiêng cạnh vạch đen) và HẠ tay cần (lật bản đồ LiDAR).',
+    howTo: 'Giúp phi công phóng drone: mũi robot vào vùng M01, NÂNG tay cần → drone không còn chạm thảm (20). Bonus +10: bản đồ LiDAR lật hẳn, dấu quét ít nhất một phần trong vùng khảo sát (ô vuông nghiêng cạnh vạch đen) → tới đó và HẠ tay cần. 🚫 Robot phải rời mô hình trước khi hết trận.',
     evaluate: ({ snaps }) => {
       const a = firstSnapIdx(snaps, 0, armUpIn(MISSION_ZONES.M01));
       const b = a >= 0 ? firstSnapIdx(snaps, a + 1, armDownIn(MISSION_ZONES.M01_SURVEY)) : -1;
       return [
-        { label: 'Drone rời thảm (nâng tay cần trong vùng M01)', ok: a >= 0, pts: 20 },
-        { label: 'Bonus: lật bản đồ LiDAR trong vùng khảo sát', ok: b >= 0, pts: 10 }
+        { label: 'Drone không còn chạm thảm', ok: a >= 0, pts: 20 },
+        { label: 'Bonus: bản đồ LiDAR lật hẳn, dấu quét trong vùng khảo sát', ok: b >= 0, pts: 10 }
       ];
     }
   },
@@ -98,13 +105,13 @@ export const BIOGLOW_MISSION_RULES = {
     name: 'Exploding Seeds',
     home: 'left',
     max: 30,
-    howTo: 'Tiến vào M02 theo hướng BẮC (từ dưới lên) và HẠ tay cần để kích nổ quả. Sai hướng chỉ 1 hạt rơi.',
+    howTo: 'Giải phóng 3 hạt khỏi quả: mỗi hạt không còn chạm thân cây được 10 điểm. Quy ước sa bàn: tiến vào M02 theo hướng BẮC và HẠ tay cần → cả 3 hạt bung (30); tiếp cận lệch hướng chỉ 1 hạt rơi (10). Lưu ý: khi thi, hướng các ống xanh có thể thay đổi.',
     evaluate: ({ snaps }) => {
       const hit = firstSnapIdx(snaps, 0, armDownIn(MISSION_ZONES.M02));
       const good = hit >= 0 && angDiff(snaps[hit].angle, NORTH) <= 25;
       return [
-        { label: 'Hạt thứ 1 rời thân cây', ok: hit >= 0, pts: 10 },
-        { label: 'Hạt thứ 2 & 3 (tiếp cận đúng hướng Bắc)', ok: good, pts: 20 }
+        { label: 'Hạt thứ 1 không còn chạm thân cây', ok: hit >= 0, pts: 10 },
+        { label: 'Hạt thứ 2 và 3 không còn chạm thân cây (tiếp cận hướng Bắc)', ok: good, pts: 20 }
       ];
     }
   },
@@ -126,18 +133,35 @@ export const BIOGLOW_MISSION_RULES = {
     name: 'Lucky Leaves',
     home: 'left',
     max: 30,
-    howTo: 'Mũi robot vào vùng M04 nhưng THÂN robot không được chạm tổ (con katydid). Mỗi chu kỳ HẠ → NÂNG tay cần kéo 1 lá. Lá 1: 10 điểm; lá 2 + katydid yên: +20.',
-    evaluate: ({ snaps, trail }) => {
+    noEquipment: true,
+    howTo:
+      'Tổ có 3 vòng treo (trái · giữa · phải): 2 vòng là LÁ, 1 vòng là con KATYDID — trọng tài xếp ngẫu nhiên. Đưa mũi robot đúng vòng lá (sai số ±2 cm), HẠ rồi NÂNG tay cần để kéo lá ra. Kéo nhầm vòng katydid → katydid rời leaf habitat → cả mission 0 điểm. Thân robot chạm tổ → katydid lệch chỗ → mất bonus.',
+    evaluate: ({ snaps, trail }, opts = {}) => {
       const z = MISSION_ZONES.M04;
+      const katPos = opts.katydid || 'center';
+      // Kéo 1 vòng = HẠ tay cần rồi NÂNG lại khi mũi robot đứng ngay vòng đó
+      const pulled = [];
+      for (let i = 0; i < snaps.length; i++) {
+        if (!armDownIn(z)(snaps[i])) continue;
+        const loop = loopAt(front(snaps[i]));
+        if (!loop) continue;
+        const up = firstSnapIdx(snaps, i + 1, (s) => s.arm >= ARM_UP);
+        if (up >= 0 && loopAt(front(snaps[up])) === loop && inBox(front(snaps[up]), z) && !pulled.includes(loop)) {
+          pulled.push(loop);
+        }
+      }
+      const katydidOut = pulled.includes(katPos);
+      const leaves = pulled.filter((l) => l !== katPos).length;
       const disturbed = touched(trail, NO_TOUCH.KATYDID);
-      const d1 = firstSnapIdx(snaps, 0, armDownIn(z));
-      const u1 = d1 >= 0 ? firstSnapIdx(snaps, d1 + 1, armUpIn(z)) : -1;
-      const d2 = u1 >= 0 ? firstSnapIdx(snaps, u1 + 1, armDownIn(z)) : -1;
-      const u2 = d2 >= 0 ? firstSnapIdx(snaps, d2 + 1, armUpIn(z)) : -1;
+      const katName = { left: 'trái', center: 'giữa', right: 'phải' }[katPos];
       return [
-        { label: 'Katydid không bị chạm (thân robot ngoài tổ)', ok: !disturbed, pts: 0 },
-        { label: 'Lá 1 rời tổ (hạ → nâng tay cần)', ok: !disturbed && u1 >= 0, pts: 10 },
-        { label: 'Bonus: lá 2 rời tổ, katydid giữ nguyên', ok: !disturbed && u2 >= 0, pts: 20 }
+        { label: `Katydid (vòng ${katName}) còn trong leaf habitat`, ok: !katydidOut, pts: 0 },
+        { label: 'Một lá rời khỏi tổ', ok: !katydidOut && leaves >= 1, pts: 10 },
+        {
+          label: 'Bonus: lá thứ hai rời tổ, katydid giữ nguyên vị trí (thân robot không chạm tổ)',
+          ok: !katydidOut && leaves >= 2 && !disturbed,
+          pts: 20
+        }
       ];
     }
   },
@@ -159,13 +183,16 @@ export const BIOGLOW_MISSION_RULES = {
     name: 'Leafcutter Frenzy',
     home: 'right',
     max: 40,
-    howTo: 'Chở con kiến và 4 mảnh lá từ Home phải, tiến vào M06 hướng BẮC rồi HẠ tay cần thả vào tổ. Lệch hướng thì rơi mất 2 mảnh.',
+    howTo:
+      'Con kiến nằm trên thanh răng trước tổ, mang 4 mảnh lá. Đẩy kiến vào tổ: mũi robot vào M06 theo hướng BẮC. "Đi quá nhanh lá sẽ văng": tốc độ khi đẩy ≤ 30% giữ đủ 4 mảnh (40đ), ≤ 50% còn 2 mảnh (20đ), nhanh hơn văng hết (0đ). Điểm chỉ tính khi kiến chạm tổ.',
     evaluate: ({ snaps }) => {
-      const d = firstSnapIdx(snaps, 0, armDownIn(MISSION_ZONES.M06));
-      const straight = d >= 0 && angDiff(snaps[d].angle, NORTH) <= 20;
+      const i = firstSnapIdx(snaps, 0, facingIn(MISSION_ZONES.M06, NORTH, 20));
+      const spd = i >= 0 ? snaps[i].speed ?? 50 : null;
+      const frags = i < 0 ? 0 : spd <= 30 ? 4 : spd <= 50 ? 2 : 0;
       return [
-        { label: 'Kiến chạm tổ + 2 mảnh lá trong tổ', ok: d >= 0, pts: 20 },
-        { label: '2 mảnh lá còn lại (thả đúng hướng Bắc)', ok: straight, pts: 20 }
+        { label: 'Kiến được đẩy chạm tổ', ok: i >= 0, pts: 0 },
+        { label: `Mảnh lá 1–2 trong tổ${i >= 0 ? ` (tốc độ đẩy ${spd}%)` : ''}`, ok: frags >= 2, pts: 20 },
+        { label: 'Mảnh lá 3–4 trong tổ (đẩy chậm ≤ 30%)', ok: frags >= 4, pts: 20 }
       ];
     }
   },
@@ -245,7 +272,7 @@ export const BIOGLOW_MISSION_RULES = {
     home: 'right',
     max: 30,
     dock: 'DOCK1',
-    howTo: 'Chở loài chủ chốt (đội tự lắp) tới dock đặt mô hình M13 và HẠ tay cần đặt lên bệ phục hồi — cây non bật lên.',
+    howTo: 'Đội tự lắp loài chủ chốt bằng gạch túi số 20 (được tính là thiết bị, khai báo khi kiểm tra trước trận). Chở từ Home tới dock đặt M13, HẠ tay cần đặt lên bệ phục hồi → cây non được nâng lên (30).',
     evaluate: ({ snaps }, opts = {}) => {
       const dock = MISSION_ZONES[opts.dock || 'DOCK1'];
       const ok = firstSnapIdx(snaps, 0, armDownIn(dock)) >= 0;
@@ -257,7 +284,7 @@ export const BIOGLOW_MISSION_RULES = {
     home: 'right',
     max: 40,
     dock: 'DOCK3',
-    howTo: 'Chở 4 hạt tới dock đặt mô hình M14. HẠ tay cần ≤ 20° → 4 hạt vào trạm và chạm thảm (40). Hạ chưa sát (21–45°) → hạt vào trạm nhưng không chạm thảm (20).',
+    howTo: 'Gieo hạt đội đã thu thập vào trạm gieo trồng: mỗi hạt nằm trong trạm 5 điểm, bonus +5 mỗi hạt chạm thảm. Quy ước sa bàn (4 hạt chở từ Home): HẠ tay cần ≤ 20° trong dock → 4 hạt vào trạm và chạm thảm (40); hạ chưa sát (21–45°) → vào trạm nhưng không chạm thảm (20).',
     evaluate: ({ snaps }, opts = {}) => {
       const dock = MISSION_ZONES[opts.dock || 'DOCK3'];
       const inside = firstSnapIdx(snaps, 0, (s) => s.arm <= 45 && inBox(front(s), dock));
@@ -273,22 +300,46 @@ export const BIOGLOW_MISSION_RULES = {
     home: 'left',
     max: 40,
     dock: 'DOCK2',
-    howTo: 'Tại dock đặt mô hình M15: NÂNG tay cần (mái tổ chim, 10), đẩy vào theo hướng BẮC (giếng trời, 10), HẠ tay cần (mở cửa ủ phân, 10). +10 nếu hoàn thành nhu cầu sinh thái của loại dock (Mine: mái, City: giếng trời, Farm: cửa ủ phân).',
+    noEquipment: true,
+    howTo:
+      'Mô hình có 3 bộ phận: NÂNG tay cần → mái tổ chim (Nesting Canopy) nâng lên (10); đẩy thẳng vào theo hướng BẮC → khung giếng trời (Garden Skylight) trượt vào hoàn toàn (10); HẠ tay cần → cửa ủ phân (Compost Hatch) mở chạm thảm (10). Environmental Bonus +10 (chỉ 1 bonus) khi hoàn thành nhu cầu lớn nhất của dock đang đặt mô hình: Mine → mái tổ chim, City → giếng trời, Farm → cửa ủ phân.',
     evaluate: ({ snaps }, opts = {}) => {
-      const dock = MISSION_ZONES[opts.dock || 'DOCK2'];
+      const dockId = opts.dock || 'DOCK2';
+      const dock = MISSION_ZONES[dockId];
+      const dockType = opts.dockType || DOCK_TYPES[dockId];
       const canopy = firstSnapIdx(snaps, 0, armUpIn(dock)) >= 0;
       const skylight = firstSnapIdx(snaps, 0, facingIn(dock, NORTH, 15)) >= 0;
       const hatch = firstSnapIdx(snaps, 0, armDownIn(dock)) >= 0;
-      const need = { mine: canopy, city: skylight, farm: hatch }[opts.dockType || ''];
-      const items = [
-        { label: 'Mái tổ chim được nâng', ok: canopy, pts: 10 },
-        { label: 'Giếng trời khu vườn vào hoàn toàn', ok: skylight, pts: 10 },
-        { label: 'Cửa ủ phân mở hoàn toàn', ok: hatch, pts: 10 }
+      const need = { mine: canopy, city: skylight, farm: hatch }[dockType];
+      const needName = { mine: 'mái tổ chim', city: 'giếng trời', farm: 'cửa ủ phân' }[dockType];
+      return [
+        { label: 'Mái tổ chim (Nesting Canopy) được nâng', ok: canopy, pts: 10 },
+        { label: 'Giếng trời (Garden Skylight) vào hoàn toàn', ok: skylight, pts: 10 },
+        { label: 'Cửa ủ phân (Compost Hatch) mở, chạm thảm', ok: hatch, pts: 10 },
+        {
+          label: `Environmental Bonus — ${DOCK_NAMES[dockType] || dockType}: ${needName}`,
+          ok: !!need,
+          pts: dockType ? 10 : 0
+        }
       ];
-      if (opts.dockType) items.push({ label: `Environmental bonus (dock ${opts.dockType})`, ok: !!need, pts: 10 });
-      return items;
     }
   }
+};
+
+// Loại dock theo vị trí (suy ra từ hình nền thảm — xem bioglow.js)
+export const DOCK_TYPES = { DOCK1: 'mine', DOCK2: 'farm', DOCK3: 'city' };
+const DOCK_NAMES = { mine: 'Mine dock', farm: 'Farm dock', city: 'City dock' };
+
+// Mission có biểu tượng 🚫 No Equipment Constraint (theo phiếu điểm chính thức) và vùng mô hình tương ứng:
+// mô hình còn chạm thiết bị (robot) khi hết trận → mission đó không được điểm.
+const NO_EQUIPMENT_ZONES = {
+  M01: ['M01'],
+  M04: ['M04'],
+  M05: ['M05'],
+  M07: ['M07'],
+  M09: ['M09'],
+  M12: ['M12', 'M12_POST'],
+  M15: ['__DOCK__']
 };
 
 export const ALL_MISSION_IDS = Object.keys(BIOGLOW_MISSION_RULES);
@@ -300,9 +351,21 @@ const PRECISION_POINTS = [0, 10, 15, 25, 35, 50, 50];
 export function evaluateBioglowRun(run, opts = {}) {
   const ids = opts.missions && opts.missions.length ? opts.missions : ALL_MISSION_IDS;
   const list = ids.includes('M10') ? ids : [...ids, 'M10']; // M10 luôn được chấm
+  const fpEnd = run.finalPose || {};
+  const endFront = fpEnd.x !== undefined ? front({ x: fpEnd.x, y: fpEnd.y, angle: fpEnd.angle || 0 }) : null;
   const missions = list.map((id) => {
     const rule = BIOGLOW_MISSION_RULES[id];
-    const checks = rule.evaluate(run, opts);
+    let checks = rule.evaluate(run, opts);
+    const zoneKeys = NO_EQUIPMENT_ZONES[id];
+    if (zoneKeys && endFront) {
+      const zones = zoneKeys.map((k) => MISSION_ZONES[k === '__DOCK__' ? opts.dock || rule.dock : k]);
+      const stillTouching = zones.some((z) => inBox(endFront, z) || inBox(fpEnd, z));
+      const anyScored = checks.some((c) => c.ok && c.pts > 0);
+      if (anyScored || stillTouching) {
+        if (stillTouching) checks = checks.map((c) => ({ ...c, ok: false }));
+        checks = [...checks, { label: '🚫 Robot không còn chạm mô hình khi hết trận', ok: !stillTouching, pts: 0 }];
+      }
+    }
     const points = checks.reduce((a, c) => a + (c.ok ? c.pts : 0), 0);
     const max = checks.reduce((a, c) => a + c.pts, 0); // tối đa theo các mục được chấm trong lượt này
     return { id, name: rule.name, points, max, checks };
@@ -347,12 +410,15 @@ export function planBlocks(prefix, start, actions) {
     y += Math.sin(rad) * realPx * s;
   };
   const goTo = (tx, ty) => {
+    if (Math.hypot(tx - x, ty - y) < 1) return; // đã ở đúng chỗ — không quay
     const h = (Math.atan2(ty - y, tx - x) * 180) / Math.PI;
     turnTo(h);
     fwd(Math.hypot(tx - x, ty - y));
   };
   for (const a of actions) {
-    if (a.arm !== undefined) {
+    if (a.speed !== undefined) {
+      out.push({ id: id(), type: 'set_movement_speed', params: { speed: a.speed } });
+    } else if (a.arm !== undefined) {
       out.push({ id: id(), type: 'motor_go_to_position', params: { port: 'C', direction: 'shortest path', position: a.arm } });
     } else if (a.to) {
       goTo(a.to[0], a.to[1]);
@@ -403,9 +469,18 @@ export const BIOGLOW_LESSON_SPECS = [
   },
   {
     no: 'B04', missions: ['M04'], start: 'left', grid: 'A6', level: 'Khó',
-    title: 'M04 Lucky Leaves — Kéo 2 lá, không chạm katydid',
-    hints: ['Tổ ở góc trên trái (cột A, hàng 6). Chỉ MŨI robot được vào vùng, thân robot phải ở ngoài tổ.', 'Dừng khi mũi robot cách mép dưới tổ khoảng 3 cm, hướng Bắc.', 'Lặp 2 lần: hạ 10° → nâng 80°. Dùng vòng lặp repeat 2!'],
-    path: [{ approach: [56, 50], heading: NORTH, run: 30 }, { arm: 10 }, { arm: 80 }, { arm: 10 }, { arm: 80 }, { back: 12 }, { to: LEFT_HOME }]
+    title: 'M04 Lucky Leaves — Kéo đúng 2 vòng lá, tránh vòng katydid',
+    katydid: 'center',
+    hints: [
+      'Bài này katydid ở vòng GIỮA (vòng tô vàng trên thảm); 2 lá ở vòng TRÁI và PHẢI, cách nhau ≈ 10 cm. Khi thi thật trọng tài xếp ngẫu nhiên — hãy viết 3 My Block "kéo vòng trái/giữa/phải".',
+      'Mũi robot hướng Bắc, dừng ngay dưới vòng trái (cách mép dưới tổ ~3 cm), hạ 10° → nâng 80°. Thân robot không được chạm tổ.',
+      'Lùi ~5 cm, dịch sang phải ~10 cm, lặp lại với vòng phải rồi về Home.'
+    ],
+    path: [
+      { approach: [45, 50], heading: NORTH, run: 30 }, { arm: 10 }, { arm: 80 }, { back: 6 },
+      { approach: [68, 50], heading: NORTH, run: 20 }, { arm: 10 }, { arm: 80 }, { back: 12 },
+      { to: LEFT_HOME }
+    ]
   },
   {
     no: 'B05', missions: ['M05'], start: 'left', grid: 'C6', level: 'Dễ',
@@ -415,9 +490,17 @@ export const BIOGLOW_LESSON_SPECS = [
   },
   {
     no: 'B06', missions: ['M06'], start: 'right', grid: 'H6', level: 'Trung bình',
-    title: 'M06 Leafcutter Frenzy — Đưa kiến và lá về tổ',
-    hints: ['Xuất phát từ Home PHẢI. Nâng tay cần 80° để giữ kiến và lá khi di chuyển.', 'Tiếp cận M06 (cột H, hàng 6) theo hướng Bắc, hạ tay cần 10° để thả.', 'Thả lệch hướng sẽ mất 2 mảnh lá.'],
-    path: [{ arm: 80 }, { approach: [377, 26], heading: NORTH, run: 40 }, { arm: 10 }, { back: 17 }, { to: RIGHT_HOME }]
+    title: 'M06 Leafcutter Frenzy — Đẩy kiến về tổ thật chậm',
+    hints: [
+      'Xuất phát từ Home PHẢI, đi nhanh (50–60%) tới điểm chờ ngay dưới M06 (cột H, hàng 6).',
+      'TRƯỚC khi đẩy: "set movement speed to 30 %". Đẩy quá nhanh lá sẽ văng khỏi tổ!',
+      'Quay hướng Bắc, đẩy thẳng ~17 cm, rồi đặt lại tốc độ 50% để về Home cho nhanh.'
+    ],
+    path: [
+      { speed: 50 }, { to: [377, 84] }, { face: NORTH }, { speed: 30 },
+      { approach: [377, 26], heading: NORTH, run: 40 },
+      { speed: 50 }, { back: 17 }, { to: RIGHT_HOME }
+    ]
   },
   {
     no: 'B07', missions: ['M07'], start: 'right', grid: 'I6', level: 'Dễ',
@@ -458,19 +541,19 @@ export const BIOGLOW_LESSON_SPECS = [
   {
     no: 'B13', missions: ['M13'], dock: 'DOCK1', start: 'right', grid: 'J6', level: 'Trung bình',
     title: 'M13 Keystone Species — Đưa loài chủ chốt lên bệ phục hồi',
-    hints: ['Bài này đặt mô hình M13 ở dock góc trên phải (cột J, hàng 6).', 'Từ Home phải đi thẳng hướng Bắc.', 'Hạ tay cần 10° để đặt loài chủ chốt lên bệ.'],
+    hints: ['Bài này đặt mô hình M13 ở MINE dock (góc trên phải, cột J, hàng 6).', 'Từ Home phải đi thẳng hướng Bắc.', 'Hạ tay cần 10° để đặt loài chủ chốt lên bệ.'],
     path: [{ arm: 80 }, { approach: [464, 40], heading: NORTH, run: 40 }, { arm: 10 }, { back: 17 }, { to: RIGHT_HOME }]
   },
   {
     no: 'B14', missions: ['M14'], dock: 'DOCK3', start: 'right', grid: 'G1', level: 'Trung bình',
     title: 'M14 Seeds of Renewal — Gieo 4 hạt vào trạm',
-    hints: ['Bài này đặt mô hình M14 ở dock mép dưới (cột G, hàng 1).', 'Từ Home phải đi sát mép dưới theo hướng Tây.', 'Hạ tay cần hẳn 10° để hạt chạm thảm (bonus). Hạ 30° chỉ được một nửa điểm.'],
+    hints: ['Bài này đặt mô hình M14 ở CITY dock (mép dưới, cột G, hàng 1).', 'Từ Home phải đi sát mép dưới theo hướng Tây.', 'Hạ tay cần hẳn 10° để hạt chạm thảm (bonus). Hạ 30° chỉ được một nửa điểm.'],
     path: [{ arm: 80 }, { approach: [334, 240], heading: WEST, run: 30 }, { arm: 10 }, { arm: 80 }, { back: 13 }, { to: RIGHT_HOME }]
   },
   {
     no: 'B15', missions: ['M15'], dock: 'DOCK2', start: 'left', grid: 'F4', level: 'Khó',
-    title: 'M15 Biocentric Architecture — Mái tổ chim, giếng trời, cửa ủ phân',
-    hints: ['Bài này đặt mô hình M15 ở dock giữa sân (cột F, hàng 4) — sát tổ ốc sên M10!', 'Tiếp cận từ phía Nam theo hướng Bắc (đẩy giếng trời).', 'Nâng 80° (mái tổ chim) rồi hạ 10° (cửa ủ phân).'],
+    title: 'M15 Biocentric Architecture — Farm dock: mái tổ chim, giếng trời, cửa ủ phân + bonus',
+    hints: ['Bài này đặt M15 ở FARM dock (giữa sân, cột F, hàng 4) — sát tổ ốc sên M10! Nhu cầu lớn nhất của Farm là CỬA Ủ PHÂN → +10 bonus.', 'Tiếp cận từ phía Nam theo hướng Bắc (đẩy giếng trời vào), nâng 80° (mái tổ chim), hạ 10° (mở cửa ủ phân).', 'M15 có biểu tượng 🚫: phải lùi robot ra khỏi mô hình trước khi hết trận, nếu không cả mission bằng 0.'],
     path: [{ approach: [260, 135], heading: NORTH, run: 30 }, { arm: 80 }, { arm: 10 }, { arm: 80 }, { back: 13 }, { to: LEFT_HOME }]
   },
   {

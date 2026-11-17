@@ -726,7 +726,7 @@ function buildBioglowLessons() {
         ...planBlocks(`${p}s`, start, spec.path)
       ],
       winCondition: 'bioglow_missions',
-      winParams: { missions: ids, dock: spec.dock, minScore: spec.minScore },
+      winParams: { missions: ids, dock: spec.dock, minScore: spec.minScore, katydid: spec.katydid || 'center' },
       requiredBlocks: ['motor_go_to_position'].filter(() => spec.path.some((a) => a.arm !== undefined)),
       lockSolution: true
     };

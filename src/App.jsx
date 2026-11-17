@@ -135,9 +135,13 @@ function loadInitialMissions() {
     if (!raw) return CURRICULUM.map(migrateMission);
     const saved = JSON.parse(raw);
     if (!Array.isArray(saved) || saved.length === 0) return CURRICULUM.map(migrateMission);
+    // Bài có sẵn mà giáo viên CHƯA chỉnh sửa → luôn lấy bản mới nhất trong code (để nhận các bản cập nhật bài học).
+    // Bài giáo viên đã chỉnh (customized) và bài tự tạo → giữ nguyên bản đã lưu trong trình duyệt.
+    const defaultsById = new Map(CURRICULUM.map((d) => [d.id, d]));
+    const merged = saved.map((m) => (defaultsById.has(m.id) && !m.customized ? defaultsById.get(m.id) : m));
     const savedIds = new Set(saved.map((m) => m.id));
     const missingDefaults = CURRICULUM.filter((d) => !savedIds.has(d.id));
-    return [...saved, ...missingDefaults].map(migrateMission);
+    return [...merged, ...missingDefaults].map(migrateMission);
   } catch {
     return CURRICULUM.map(migrateMission);
   }
@@ -1094,7 +1098,7 @@ export default function App() {
     setArenaConfig((prev) => {
       const next = typeof updater === 'function' ? updater(prev) : updater;
       setMissions((all) =>
-        all.map((m) => (m.id === currentLessonId ? { ...m, arenaConfig: next } : m))
+        all.map((m) => (m.id === currentLessonId ? { ...m, arenaConfig: next, customized: true } : m))
       );
       return next;
     });
@@ -1121,6 +1125,7 @@ export default function App() {
         m.id === currentLessonId
           ? {
               ...m,
+              customized: true,
               mode: simMode,
               mapType: simMode === '3D' ? '3d_mission' : mapType,
               scene3DType: simMode === '3D' ? scene3DType : m.scene3DType,
@@ -1203,7 +1208,7 @@ export default function App() {
 
   const handleUpdateMissionField = (field, value) => {
     setMissions((prev) =>
-      prev.map((m) => (m.id === currentLessonId ? { ...m, [field]: value } : m))
+      prev.map((m) => (m.id === currentLessonId ? { ...m, [field]: value, customized: true } : m))
     );
     if (field === 'mode') {
       setSimMode(value);
@@ -1462,7 +1467,7 @@ export default function App() {
         const wp = currentLesson.winParams || {};
         const res = evaluateBioglowRun(
           { snaps: finalPose.snaps || [], trail, finalPose, collision: collisionOccurred },
-          { missions: wp.missions, dock: wp.dock, dockType: wp.dockType }
+          { missions: wp.missions, dock: wp.dock, dockType: wp.dockType, katydid: wp.katydid }
         );
         const listed = Array.isArray(wp.missions) && wp.missions.length > 0;
         for (const m of res.missions) {
@@ -1908,6 +1913,7 @@ export default function App() {
             break;
 
           case 'move_for_duration': {
+            pose.lastSpeed = moveSpeed;
             const sign = p.direction === 'forward' ? 1 : -1;
             const cmDist =
               p.unit === 'cm'
@@ -1961,6 +1967,7 @@ export default function App() {
             const cmDist = Number(p.value ?? 40);
             const kp = Math.max(0, Number(p.kp ?? 2));
             const spd = Math.max(5, Math.min(100, Number(p.speed ?? 50)));
+            pose.lastSpeed = spd;
             const sign = cmDist >= 0 ? 1 : -1;
             const heading = pose.angle;
             const totalPx = Math.abs(cmDist) * getPxPerCm();
@@ -2038,6 +2045,7 @@ export default function App() {
           }
 
           case 'start_moving': {
+            pose.lastSpeed = moveSpeed;
             const sign = p.direction === 'backward' ? -1 : 1;
             isContinuousDrivingRef.current = { moving: true, direction: sign, steering: 0 };
             setStatusLog(`start moving ${p.direction === 'backward' ? '↓' : '↑'}`);
@@ -2481,6 +2489,7 @@ export default function App() {
           y: pose.y,
           angle: pose.angle,
           arm: pose.armAngle,
+          speed: pose.lastSpeed ?? moveSpeed,
           blockId: block.id
         });
       }
@@ -4175,6 +4184,7 @@ export default function App() {
                   <div className="flex-1 min-h-0 overflow-hidden">
                     <VirtualSimulatorPanel
                       bioglowScoredIds={bioglowScoredIds}
+                      bioglowKatydid={currentLesson.winParams?.katydid || 'center'}
                       simMode={simMode}
                       setSimMode={setSimMode}
                       mapType={mapType}
