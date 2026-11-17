@@ -1548,6 +1548,37 @@ export default function App() {
         break;
     }
 
+    // Kiểm tra các KHỐI BẮT BUỘC của đề bài (duyệt cả khối lồng trong C-block và ô điều kiện lục giác)
+    const required = Array.isArray(currentLesson.requiredBlocks) ? currentLesson.requiredBlocks : [];
+    if (required.length > 0) {
+      const used = new Set();
+      const walk = (list) => {
+        for (const b of list || []) {
+          if (!b) continue;
+          used.add(b.type);
+          if (b.conditionBlock) walk([b.conditionBlock]);
+          walk(b.children);
+          walk(b.elseChildren);
+        }
+      };
+      walk(blocks);
+      const missing = [];
+      for (const type of required) {
+        const ok = used.has(type);
+        const name = BLOCK_DEFINITIONS[type]?.nameVi || BLOCK_DEFINITIONS[type]?.nameEn || type;
+        criteriaResults.push({ label: `Có dùng khối: ${name}`, passed: ok });
+        if (!ok) missing.push(name);
+      }
+      if (missing.length > 0) {
+        if (passed) {
+          reason = `Chương trình chạy đúng, nhưng còn thiếu khối bắt buộc của đề bài: ${missing
+            .map((n) => `"${n}"`)
+            .join(', ')}.`;
+        }
+        passed = false;
+      }
+    }
+
     return { passed, reason, criteriaResults };
   };
 
