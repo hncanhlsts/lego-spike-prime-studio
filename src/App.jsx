@@ -42,7 +42,8 @@ import {
   ChevronUp,
   Footprints,
   StepForward,
-  Gauge
+  Gauge,
+  Timer
 } from 'lucide-react';
 import SpikeBlockItem, { SpikeWheelBadge } from './components/SpikeBlockItem';
 import VirtualSimulatorPanel, {
@@ -77,8 +78,11 @@ import {
   raycastDistanceCm,
   sampleFloorColor,
   sensorPoint,
-  DEFAULT_START_POSES
+  DEFAULT_START_POSES,
+  setActiveMapScale,
+  getPxPerCm
 } from './utils/simPhysics';
+import FllMatchScorerModal from './components/FllMatchScorerModal';
 import { SpikeBluetoothManager } from './utils/bluetoothSpike';
 
 const COLOR_SWATCHES = [
@@ -131,6 +135,7 @@ export default function App() {
   // Sổ tay Khối lệnh & Kỹ thuật FLL/WRO
   const [showEncyclopediaModal, setShowEncyclopediaModal] = useState(false);
   const [showUserGuideModal, setShowUserGuideModal] = useState(false);
+  const [showScorerModal, setShowScorerModal] = useState(false);
 
   // Thanh đề bài & Gợi ý cho Học sinh
   const [showBriefBar, setShowBriefBar] = useState(true);
@@ -284,6 +289,9 @@ export default function App() {
       ? currentLesson.mapType
       : 'sensor_lab'
   );
+  // Tỉ lệ px/cm phụ thuộc sa bàn (thảm FLL theo mùa vẽ đúng kích thước thật) — đặt đồng bộ trong lúc render
+  // để Canvas, cảm biến và khối di chuyển luôn dùng cùng một tỉ lệ.
+  setActiveMapScale(mapType);
   const [scene3DType, setScene3DType] = useState(
     currentLesson.scene3DType || '3d_grab_lift'
   );
@@ -866,7 +874,8 @@ export default function App() {
     typeKey,
     targetIndex,
     targetContainerId = 'root',
-    targetBranch = 'root'
+    targetBranch = 'root',
+    paramOverrides = null
   ) => {
     const def = BLOCK_DEFINITIONS[typeKey];
     if (!def) return;
@@ -874,7 +883,7 @@ export default function App() {
     const newBlock = {
       id: makeUid('blk'),
       type: typeKey,
-      params: { ...def.defaultParams },
+      params: { ...def.defaultParams, ...(paramOverrides || {}) },
       children: isCBlock ? [] : undefined,
       elseChildren: typeKey === 'if_else_block' ? [] : undefined
     };
@@ -1347,15 +1356,50 @@ export default function App() {
     let reason = '';
     const criteriaResults = [];
 
-    const insideGoal = goals.some(
-      (g) =>
-        finalPose.x >= g.x &&
-        finalPose.x <= g.x + g.w &&
-        finalPose.y >= g.y &&
-        finalPose.y <= g.y + g.h
-    );
+    // Nếu đề bài chỉ định goalIds thì chỉ các ô đó mới tính là Đích
+    const wantedIds = currentLesson.winParams?.goalIds;
+    const targetGoals =
+      Array.isArray(wantedIds) && wantedIds.length > 0
+        ? goals.filter((g) => wantedIds.includes(g.id))
+        : goals;
+    const ptInGoal = (pt, g) =>
+      pt.x >= g.x && pt.x <= g.x + g.w && pt.y >= g.y && pt.y <= g.y + g.h;
+
+    const insideGoal = targetGoals.some((g) => ptInGoal(finalPose, g));
 
     switch (win) {
+      case 'visit_in_order': {
+        // Duyệt vết di chuyển: robot phải ghé lần lượt từng trạm theo đúng thứ tự
+        const path = [...(trail || []), finalPose];
+        const ids = Array.isArray(wantedIds) ? wantedIds : [];
+        const route = ids.map((id) => goals.find((gg) => gg.id === id)?.label || id).join(' → ');
+        let cursor = 0;
+        let allOk = ids.length > 0;
+        for (const id of ids) {
+          const g = goals.find((gg) => gg.id === id);
+          let hitAt = -1;
+          if (g) {
+            for (let i = cursor; i < path.length; i++) {
+              if (ptInGoal(path[i], g)) {
+                hitAt = i;
+                break;
+              }
+            }
+          }
+          criteriaResults.push({ label: `Ghé ${g?.label || id}`, passed: hitAt >= 0 });
+          if (hitAt < 0) allOk = false;
+          else cursor = hitAt;
+        }
+        criteriaResults.push({ label: 'Không va chạm', passed: !collisionOccurred });
+        passed = allOk && !collisionOccurred;
+        reason = passed
+          ? `Robot đã ghé đủ ${route} theo đúng thứ tự!`
+          : collisionOccurred
+          ? 'Robot đã va chạm tường/vật cản!'
+          : `Robot chưa ghé đủ các trạm theo thứ tự ${route}.`;
+        break;
+      }
+
       case 'reach_goal':
         passed = insideGoal && !collisionOccurred;
         reason = passed
@@ -1547,7 +1591,7 @@ export default function App() {
         pose.angle = Math.round((pose.angle + steer * 0.1 * factor + 360) % 360);
       }
       const rad = (pose.angle * Math.PI) / 180;
-      const stepDist = (moveSpeed / 100) * 3.6 * dir * factor;
+      const stepDist = (moveSpeed / 100) * 3.6 * (getPxPerCm() / 1.1) * dir * factor;
       const nx = Math.max(25, Math.min(495, pose.x + Math.cos(rad) * stepDist));
       const ny = Math.max(25, Math.min(240, pose.y + Math.sin(rad) * stepDist));
 
@@ -1711,8 +1755,8 @@ export default function App() {
                 : p.unit === 'degrees'
                 ? (p.value / 360) * 17.5
                 : p.value * 25;
-            const totalPx = cmDist * 1.1;
-            const steps = Math.max(8, Math.min(26, Math.round(Math.abs(totalPx) / 3)));
+            const totalPx = cmDist * getPxPerCm();
+            const steps = Math.max(8, Math.min(40, Math.round(Math.abs(totalPx) / 3)));
             const stepDist = (totalPx / steps) * sign;
             setStatusLog(`move ${p.direction === 'forward' ? '↑' : '↓'} for ${p.value} ${p.unit}`);
 
@@ -1746,6 +1790,65 @@ export default function App() {
               }));
               await sleep(28);
             }
+            break;
+          }
+
+          case 'gyro_move_straight': {
+            // Đi thẳng giữ hướng bằng P-controller. Sa bàn mô phỏng thêm độ lệch bánh xe (như robot thật)
+            // để học sinh thấy con quay tự kéo robot về đúng hướng.
+            const cmDist = Number(p.value ?? 40);
+            const kp = Math.max(0, Number(p.kp ?? 2));
+            const spd = Math.max(5, Math.min(100, Number(p.speed ?? 50)));
+            const sign = cmDist >= 0 ? 1 : -1;
+            const heading = pose.angle;
+            const totalPx = Math.abs(cmDist) * getPxPerCm();
+            const steps = Math.max(10, Math.min(60, Math.round(totalPx / 3)));
+            const stepDist = (totalPx / steps) * sign;
+            let maxErr = 0;
+            setStatusLog(`gyro move straight for ${cmDist} cm at ${spd}% (Kp = ${kp}) — giữ hướng ${Math.round(heading)}°`);
+
+            for (let i = 0; i < steps; i++) {
+              if (stopFlagRef.current) break;
+              // Độ lệch tự nhiên của bánh xe (thiên lệch phải + rung nhẹ)
+              const drift = 0.5 + 0.6 * Math.sin(i * 0.9);
+              let err = heading - pose.angle;
+              err = ((err + 540) % 360) - 180;
+              const steer = Math.max(-100, Math.min(100, err * kp));
+              pose.angle = pose.angle + drift + steer * 0.1;
+              maxErr = Math.max(maxErr, Math.abs(err));
+              const rad = (pose.angle * Math.PI) / 180;
+              const nx = Math.max(25, Math.min(495, pose.x + Math.cos(rad) * stepDist));
+              const ny = Math.max(25, Math.min(240, pose.y + Math.sin(rad) * stepDist));
+              const col = findCollision({ x: nx, y: ny }, solids);
+              if (col) {
+                collisionOccurred = true;
+                setStatusLog(`⚠️ Robot va chạm vào ${col.kind === 'wall' ? 'tường chắn' : 'vật cản'}!`);
+                break;
+              }
+              pose.x = nx;
+              pose.y = ny;
+              const live = computeLiveArenaSensors(pose.x, pose.y, pose.angle);
+              pose.distanceCm = live.distanceCm;
+              pose.trail = [...pose.trail, { x: pose.x, y: pose.y }];
+              setRobotPose({ ...pose });
+              setTelemetry((prev) => ({
+                ...prev,
+                gyroYaw: Math.round(pose.angle),
+                distanceSensor: { cm: pose.distanceCm },
+                colorSensor: live.detectedColor || prev.colorSensor,
+                motors: {
+                  ...prev.motors,
+                  A: { angle: prev.motors.A.angle + sign * 15, speed: spd },
+                  B: { angle: prev.motors.B.angle + sign * 15, speed: spd }
+                }
+              }));
+              await sleep(Math.round(40 - spd * 0.2));
+            }
+            setStatusLog(
+              `✓ gyro move straight xong — sai lệch hướng lớn nhất ${maxErr.toFixed(1)}°${
+                kp === 0 ? ' (Kp = 0: không sửa lái nên robot trôi lệch!)' : ''
+              }`
+            );
             break;
           }
 
@@ -2754,14 +2857,21 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL SỔ TAY KHỐI LỆNH & 6 KỸ THUẬT LẬP TRÌNH FLL/WRO */}
+      {/* MODAL ĐỒNG HỒ TRẬN & TÍNH ĐIỂM FLL BIOGLOW */}
+      {showScorerModal && <FllMatchScorerModal onClose={() => setShowScorerModal(false)} />}
+
+      {/* MODAL SỔ TAY KHỐI LỆNH & 7 KỸ THUẬT LẬP TRÌNH FLL/WRO */}
       {showEncyclopediaModal && (
         <BlockEncyclopediaModal
           isOpen={showEncyclopediaModal}
           onClose={() => setShowEncyclopediaModal(false)}
-          onInsertBlock={(blockType) => {
-            handleInsertBlockAt(blockType, blocks.length);
+          onInsertBlock={(blockType, paramOverrides) => {
+            handleInsertBlockAt(blockType, blocks.length, 'root', 'root', paramOverrides);
             setShowEncyclopediaModal(false);
+          }}
+          onSelectLessonById={(lessonId) => {
+            const lesson = (missions || []).find((m) => m.id === lessonId);
+            if (lesson) handleSelectLesson(lesson);
           }}
         />
       )}
@@ -3085,6 +3195,17 @@ export default function App() {
             <Compass className="w-3.5 h-3.5" />
             <span className="hidden md:inline">Sổ Tay (FLL/WRO)</span>
             <span className="md:hidden">Sổ Tay</span>
+          </button>
+
+          {/* NÚT ĐỒNG HỒ TRẬN 2:30 & TÍNH ĐIỂM ROBOT GAME MÙA BIOGLOW */}
+          <button
+            onClick={() => setShowScorerModal(true)}
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-extrabold shadow-sm transition shrink-0"
+            title="Đồng hồ trận đấu 2:30 và bảng tính điểm Robot Game FLL 2026–27 BIOGLOW"
+          >
+            <Timer className="w-3.5 h-3.5" />
+            <span className="hidden md:inline">Tính Điểm FLL</span>
+            <span className="md:hidden">Điểm</span>
           </button>
 
           <button

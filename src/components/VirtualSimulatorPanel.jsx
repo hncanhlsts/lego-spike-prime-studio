@@ -30,7 +30,15 @@ import {
   Check
 } from 'lucide-react';
 import * as THREE from 'three';
-import { PX_PER_CM, SENSOR_OFFSET_PX, ROBOT_RADIUS_PX } from '../utils/simPhysics';
+import { getPxPerCm, SENSOR_OFFSET_PX, ROBOT_RADIUS_PX } from '../utils/simPhysics';
+import {
+  BIOGLOW_FIELD,
+  BIOGLOW_PX_PER_CM,
+  BIOGLOW_GRID_CM,
+  BIOGLOW_LAUNCH_AREAS,
+  BIOGLOW_LINES,
+  BIOGLOW_MODELS
+} from '../data/bioglow';
 
 const PATCH_COLORS = [
   { name: 'BLACK', label: 'Đen (0)', hex: '#0f172a', reflection: 12 },
@@ -45,6 +53,7 @@ export const MAP_2D_OPTIONS = [
   { value: 'maze', label: 'Sa bàn 2: Mê cung Góc vuông' },
   { value: 'sensor_lab', label: 'Sa bàn 3: Dải màu Cảm biến (Sensor Lab)' },
   { value: 'slalom_obstacles', label: 'Sa bàn 4: Zíc-zắc Né 3 Trụ (Slalom)' },
+  { value: 'fll_bioglow', label: '🏆 FLL 2026–27 BIOGLOW — Thảm mùa giải (200×114 cm)' },
   { value: 'fll_challenge', label: 'Sa bàn 5: Thảm Thi Đấu FLL (M01-M03)' },
   { value: 'loop_circuit', label: 'Sa bàn 6: Đường Đua F1 Khép Kín' },
   { value: 'wro_smart_city', label: 'Sa bàn 7: WRO Đô Thị Thông Minh (Giao Lộ 4 Màu)' },
@@ -850,6 +859,114 @@ export default function VirtualSimulatorPanel({
       ctx.fillStyle = '#15803d';
       ctx.font = 'bold 11px Inter';
       ctx.fillText('GOAL', 458, 136);
+    } else if (mapType === 'fll_bioglow') {
+      // ===== THẢM FLL 2026–27 BIOGLOW (200 × 114,3 cm, lưới 20 cm) =====
+      const F = BIOGLOW_FIELD;
+      const S = BIOGLOW_PX_PER_CM;
+      // Khu để đồ hai bên thảm
+      ctx.fillStyle = '#334155';
+      ctx.fillRect(0, 0, F.x, H);
+      ctx.fillRect(F.x + F.w, 0, W - (F.x + F.w), H);
+      ctx.save();
+      ctx.translate(F.x / 2 + 3, H / 2);
+      ctx.rotate(-Math.PI / 2);
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = 'bold 8px Inter';
+      ctx.textAlign = 'center';
+      ctx.fillText('KHU ĐỂ ĐỒ', 0, 0);
+      ctx.restore();
+      ctx.save();
+      ctx.translate(F.x + F.w + (W - F.x - F.w) / 2 + 3, H / 2);
+      ctx.rotate(-Math.PI / 2);
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = 'bold 8px Inter';
+      ctx.textAlign = 'center';
+      ctx.fillText('KHU ĐỂ ĐỒ', 0, 0);
+      ctx.restore();
+
+      // Mặt thảm (màu nhạt để cảm biến màu đọc là WHITE, vạch đen vẫn dò được)
+      ctx.fillStyle = '#f1f7ee';
+      ctx.fillRect(F.x, F.y, F.w, F.h);
+
+      // Lưới 20 cm: cột A–J (trái → phải), hàng 1–6 (dưới → trên)
+      const g = BIOGLOW_GRID_CM * S;
+      ctx.strokeStyle = 'rgba(220, 38, 38, 0.28)';
+      ctx.lineWidth = 1;
+      for (let i = 1; i < 10; i++) {
+        ctx.beginPath();
+        ctx.moveTo(F.x + i * g, F.y);
+        ctx.lineTo(F.x + i * g, F.y + F.h);
+        ctx.stroke();
+      }
+      for (let j = 1; j < 6; j++) {
+        const yy = F.y + F.h - j * g;
+        ctx.beginPath();
+        ctx.moveTo(F.x, yy);
+        ctx.lineTo(F.x + F.w, yy);
+        ctx.stroke();
+      }
+      ctx.fillStyle = 'rgba(185, 28, 28, 0.55)';
+      ctx.font = 'bold 7px Inter';
+      'ABCDEFGHIJ'.split('').forEach((c, i) => ctx.fillText(c, F.x + i * g + g / 2 - 2, F.y + F.h - 3));
+      for (let j = 0; j < 6; j++) ctx.fillText(String(j + 1), F.x + 2, F.y + F.h - j * g - g / 2 + 3);
+
+      // Home / Launch Area (2 cung phần tư ở 2 góc dưới)
+      BIOGLOW_LAUNCH_AREAS.forEach((la) => {
+        const leftSide = la.id === 'LEFT';
+        ctx.fillStyle = leftSide ? 'rgba(220, 38, 38, 0.08)' : 'rgba(37, 99, 235, 0.08)';
+        ctx.beginPath();
+        ctx.moveTo(la.cx, la.cy);
+        ctx.arc(la.cx, la.cy, la.r, leftSide ? -Math.PI / 2 : Math.PI, leftSide ? 0 : -Math.PI / 2);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = la.color;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(la.cx, la.cy, la.r, leftSide ? -Math.PI / 2 : Math.PI, leftSide ? 0 : -Math.PI / 2);
+        ctx.stroke();
+        ctx.fillStyle = la.color;
+        ctx.font = 'bold 8px Inter';
+        ctx.fillText(la.label, leftSide ? la.cx + 8 : la.cx - 66, la.cy - 30);
+      });
+
+      // Vạch đen in trên thảm
+      ctx.strokeStyle = '#0f172a';
+      ctx.lineWidth = 5;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      BIOGLOW_LINES.forEach((pts) => {
+        ctx.beginPath();
+        pts.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)));
+        ctx.stroke();
+      });
+      ctx.lineCap = 'butt';
+
+      // Mô hình nhiệm vụ (vị trí gần đúng theo Wireframe & Grid chính thức)
+      BIOGLOW_MODELS.forEach((m) => {
+        ctx.fillStyle = m.dock ? 'rgba(220, 38, 38, 0.10)' : m.color + '40';
+        ctx.fillRect(m.x, m.y, m.w, m.h);
+        ctx.strokeStyle = m.color;
+        ctx.lineWidth = m.dock ? 2 : 1.5;
+        if (m.dock) ctx.setLineDash([3, 2]);
+        ctx.strokeRect(m.x, m.y, m.w, m.h);
+        ctx.setLineDash([]);
+        ctx.font = 'bold 8px Inter';
+        const tag = m.dock ? 'DOCK' : m.id.replace('M', '');
+        const tw = ctx.measureText(tag).width + 6;
+        const tx = Math.min(F.x + F.w - tw - 1, m.x + m.w / 2 - tw / 2);
+        const ty = m.y + m.h + 11 > F.y + F.h ? m.y - 3 : m.y + m.h + 10;
+        ctx.fillStyle = m.dock ? '#dc2626' : '#166534';
+        ctx.beginPath();
+        ctx.roundRect(tx, ty - 8, tw, 10, 3);
+        ctx.fill();
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText(tag, tx + 3, ty);
+      });
+
+      // Viền tường bàn thi đấu
+      ctx.strokeStyle = '#0f172a';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(F.x, F.y, F.w, F.h);
     } else if (mapType === 'fll_challenge') {
       ctx.fillStyle = 'rgba(59, 130, 246, 0.16)';
       ctx.fillRect(25, 165, 95, 85);
@@ -1205,7 +1322,7 @@ export default function VirtualSimulatorPanel({
 
     // Chùm sóng siêu âm Distance Sensor (Port E) - độ dài khớp chuẩn xác với cự ly đo được (PX_PER_CM = 1.1)
     const sensorOffset = SENSOR_OFFSET_PX;
-    const coneDist = Math.min((robotPose.distanceCm || 95) * PX_PER_CM, 160);
+    const coneDist = Math.min((robotPose.distanceCm || 95) * getPxPerCm(), 160);
     const coneSpread = Math.min(22, Math.max(6, coneDist * 0.28));
 
     // Đổi màu chùm tia: nếu dưới 25cm (gần vật cản) đổi sang đỏ cảnh báo, ngược lại là xanh cyan
@@ -1344,7 +1461,7 @@ export default function VirtualSimulatorPanel({
       const dx = end.x - start.x;
       const dy = end.y - start.y;
       const distPx = Math.hypot(dx, dy);
-      const distCm = (distPx / PX_PER_CM).toFixed(1);
+      const distCm = (distPx / getPxPerCm()).toFixed(1);
       const rotations = (distCm / 17.59).toFixed(2); // 1 vòng bánh xe 5.6cm = 17.59cm
 
       // Góc hướng của tia đo trên sa bàn (-180° đến 180°)
@@ -2457,10 +2574,10 @@ export default function VirtualSimulatorPanel({
             {rulerPoints && (
               <div className="flex items-center gap-2 font-mono text-[11px] bg-slate-950 px-2.5 py-0.5 rounded-lg border border-slate-800">
                 <span className="text-cyan-300 font-black">
-                  {(Math.hypot(rulerPoints.end.x - rulerPoints.start.x, rulerPoints.end.y - rulerPoints.start.y) / PX_PER_CM).toFixed(1)} cm
+                  {(Math.hypot(rulerPoints.end.x - rulerPoints.start.x, rulerPoints.end.y - rulerPoints.start.y) / getPxPerCm()).toFixed(1)} cm
                 </span>
                 <span className="text-yellow-300 font-bold">
-                  {((Math.hypot(rulerPoints.end.x - rulerPoints.start.x, rulerPoints.end.y - rulerPoints.start.y) / PX_PER_CM) / 17.59).toFixed(2)} vòng
+                  {((Math.hypot(rulerPoints.end.x - rulerPoints.start.x, rulerPoints.end.y - rulerPoints.start.y) / getPxPerCm()) / 17.59).toFixed(2)} vòng
                 </span>
               </div>
             )}
@@ -2490,7 +2607,7 @@ export default function VirtualSimulatorPanel({
                 onClick={() => {
                   const dx = rulerPoints.end.x - rulerPoints.start.x;
                   const dy = rulerPoints.end.y - rulerPoints.start.y;
-                  const distCm = Number((Math.hypot(dx, dy) / PX_PER_CM).toFixed(1));
+                  const distCm = Number((Math.hypot(dx, dy) / getPxPerCm()).toFixed(1));
                   const targetAngleDeg = Math.round((Math.atan2(dy, dx) * 180) / Math.PI);
                   const currentRobotAngle = Math.round(robotPose?.angle || 0);
                   const relTurn = ((targetAngleDeg - currentRobotAngle + 180) % 360 + 360) % 360 - 180;

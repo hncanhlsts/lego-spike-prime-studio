@@ -50,7 +50,8 @@ const TURN = (id, deg) => ({
   params: { steeringText: `${deg < 0 ? 'left' : 'right'}: ${deg}`, steering: deg, value: 1, unit: 'rotations' }
 });
 const CPOS = (id, pos) => ({ id, type: 'motor_go_to_position', params: { port: 'C', direction: 'shortest path', position: pos } });
-const GRIP = (id, pos) => ({ id, type: 'more_motor_go_relative', params: { port: 'C', position: pos, speed: 80 } });
+const GYRO = (id, cm, speed = 50, kp = 2) => ({ id, type: 'gyro_move_straight', params: { value: cm, speed, kp } });
+const GRIP = (id, pos) =>({ id, type: 'more_motor_go_relative', params: { port: 'C', position: pos, speed: 80 } });
 
 export const CURRICULUM = [
   // ============================== 🧱 NỀN TẢNG ==============================
@@ -191,8 +192,8 @@ export const CURRICULUM = [
       'Đây là kỹ thuật cốt lõi khi thi: không đo quãng đường, để CẢM BIẾN quyết định lúc dừng.'
     ],
     hints: [
-      'Khối lục giác "E is closer than 15 % ?" nằm trong nhóm Sensors — kéo thả vào ô < > của wait until.',
-      'Đổi đơn vị sang cm và giá trị 15.',
+      'Khối lục giác "E is closer than 15 cm ?" nằm trong nhóm Sensors — kéo thả vào ô < > của wait until.',
+      'Kiểm tra lại cổng E (cảm biến khoảng cách), đơn vị cm và giá trị 15.',
       'Thứ tự: start moving → wait until <...> → stop moving.'
     ],
     starterBlocks: [HAT('f4'), MOTORS('f4')],
@@ -574,6 +575,49 @@ export const CURRICULUM = [
     ],
     winCondition: 'reach_goal',
     winParams: { goalIds: ['SAFE'] },
+    lockSolution: true
+  },
+  {
+    id: 'C4',
+    track: 'competition',
+    level: 'FLL 2026–27 · BIOGLOW',
+    title: 'C4. BIOGLOW: Gyro đi thẳng tới M02 rồi về Home',
+    mode: '2D',
+    mapType: 'fll_bioglow',
+    objective:
+      'Trên thảm BIOGLOW thật (200 × 114 cm): rời Left Launch Area, dùng gyro đi thẳng tới mission M02 (Exploding Seeds), rồi quay về Home bên trái.',
+    requirements: [
+      'Đặt "set yaw angle to 0" khi robot còn trong Launch Area.',
+      'Dùng khối "gyro move straight" (nhóm More Movement) cho mọi đoạn đi thẳng.',
+      'Ghé vùng M02 trước, sau đó về lại Home trái.'
+    ],
+    successCriteria: ['Ghé M02', 'Về Home trái sau khi ghé M02', 'Không va chạm'],
+    theory: [
+      'Thảm vẽ đúng tỉ lệ: mỗi ô lưới đỏ = 20 cm. Cột A–J tính từ trái, hàng 1–6 tính từ dưới lên.',
+      'Robot thật luôn bị lệch hướng một chút vì 2 động cơ không giống hệt nhau. Sa bàn này mô phỏng độ lệch đó.',
+      'Gyro P-controller: góc lái = (hướng mục tiêu − yaw) × Kp → robot tự kéo về đúng hướng.',
+      'Lùi về Home bằng số cm âm (ví dụ −36) để tiết kiệm thời gian xoay robot.'
+    ],
+    hints: [
+      'Dùng Thước Đo trên sa bàn: M02 nằm ở khoảng cột D, hàng 3.',
+      'Đi thẳng khoảng 45 cm, rẽ trái 90°, rồi đi thẳng khoảng 36 cm là tới M02.',
+      'Đường về: gyro move straight −36 cm, rẽ phải 90°, gyro move straight −45 cm. Thử đổi Kp = 0 để thấy robot trôi lệch!'
+    ],
+    starterBlocks: [HAT('c4'), MOTORS('c4'), { id: 'c4_yaw', type: 'set_yaw_angle_to_0', params: {} }],
+    solutionBlocks: [
+      HAT('c4s'),
+      MOTORS('c4s'),
+      { id: 'c4s0', type: 'set_yaw_angle_to_0', params: {} },
+      GYRO('c4s1', 45),
+      TURN('c4s2', -90),
+      GYRO('c4s3', 36),
+      GYRO('c4s4', -36),
+      TURN('c4s5', 90),
+      GYRO('c4s6', -45)
+    ],
+    winCondition: 'visit_in_order',
+    winParams: { goalIds: ['M02', 'HOME_LEFT'] },
+    requiredBlocks: ['gyro_move_straight'],
     lockSolution: true
   },
 

@@ -4,14 +4,34 @@
 // Giáo viên trường THCS & THPT Đinh Thiện Lý
 // =====================================================================================
 
+import {
+  BIOGLOW_PX_PER_CM,
+  BIOGLOW_GOALS,
+  BIOGLOW_SOLIDS,
+  BIOGLOW_START_POSE
+} from '../data/bioglow';
+
 export const ARENA_W = 520;
 export const ARENA_H = 265;
 export const PX_PER_CM = 1.1; // 1 cm trên sa bàn = 1.1 px (đồng bộ với khối move ... cm)
 export const SENSOR_OFFSET_PX = 15; // Cảm biến D/E gắn ở mũi robot, cách tâm 15 px (chuẩn tỉ lệ)
 export const ROBOT_RADIUS_PX = 13; // Bán kính va chạm chuẩn của Driving Base (tính từ tâm robot)
 
+// Tỉ lệ riêng của từng sa bàn: thảm thi đấu FLL theo mùa vẽ đúng kích thước thật (cm) nên có tỉ lệ khác
+export const MAP_PX_PER_CM = {
+  fll_bioglow: BIOGLOW_PX_PER_CM
+};
+let activePxPerCm = PX_PER_CM;
+export function setActiveMapScale(mapType) {
+  activePxPerCm = MAP_PX_PER_CM[mapType] || PX_PER_CM;
+}
+export function getPxPerCm() {
+  return activePxPerCm;
+}
+
 // Vật cản & tường được VẼ SẴN trong từng sa bàn mẫu (đồng bộ với VirtualSimulatorPanel)
 export const PRESET_SOLIDS = {
+  fll_bioglow: BIOGLOW_SOLIDS,
   line_track: [{ x: 425, y: 106.5, w: 36, h: 52, kind: 'obstacle' }],
   maze: [
     { x: 40, y: 35, w: 260, h: 14, kind: 'wall' },
@@ -33,6 +53,7 @@ export const PRESET_SOLIDS = {
 
 // Ô đích được VẼ SẴN trong từng sa bàn mẫu (có id để dùng cho điều kiện "đi qua theo thứ tự")
 export const PRESET_GOALS = {
+  fll_bioglow: BIOGLOW_GOALS,
   line_track: [{ id: 'line_finish', x: 345, y: 100, w: 70, h: 65, label: 'FINISH' }],
   maze: [{ id: 'maze_goal', x: 210, y: 185, w: 70, h: 55, label: 'GOAL' }],
   slalom_obstacles: [{ id: 'slalom_goal', x: 445, y: 95, w: 58, h: 75, label: 'GOAL' }],
@@ -55,6 +76,7 @@ export const PRESET_GOALS = {
 };
 
 export const DEFAULT_START_POSES = {
+  fll_bioglow: BIOGLOW_START_POSE,
   line_track: { x: 75, y: 132, angle: 0 },
   sensor_lab: { x: 75, y: 132, angle: 0 },
   maze: { x: 75, y: 88, angle: 0 },
@@ -136,15 +158,16 @@ export function raycastDistanceCm(arg1, arg2, arg3, arg4, arg5) {
   const rad = (angleDeg * Math.PI) / 180;
   const sx = px + Math.cos(rad) * SENSOR_OFFSET_PX;
   const sy = py + Math.sin(rad) * SENSOR_OFFSET_PX;
-  const maxPx = maxCm * PX_PER_CM;
+  const scale = getPxPerCm();
+  const maxPx = maxCm * scale;
   for (let d = 0; d <= maxPx; d += 1.5) {
     const x = sx + Math.cos(rad) * d;
     const y = sy + Math.sin(rad) * d;
     if (x <= 0 || y <= 0 || x >= ARENA_W || y >= ARENA_H) {
-      return Math.max(1, Math.round(d / PX_PER_CM));
+      return Math.max(1, Math.round(d / scale));
     }
     for (const s of solids) {
-      if (s && pointInRect(x, y, s)) return Math.max(1, Math.round(d / PX_PER_CM));
+      if (s && pointInRect(x, y, s)) return Math.max(1, Math.round(d / scale));
     }
   }
   return maxCm;
@@ -235,6 +258,7 @@ export const SIM_SUPPORTED_BLOCKS = new Set([
   'start_moving_steering',
   'stop_moving',
   'more_movement_tank',
+  'gyro_move_straight',
   'light_matrix_turn_on_for_seconds',
   'light_matrix_turn_on',
   'light_matrix_set_pixel',

@@ -30,9 +30,20 @@ const CORE_TECHNIQUES = [
     formula: 'Quãng đường (cm) = Số vòng quay × Chu vi bánh xe (17.5 cm với bánh chuẩn 56mm)',
     tips: [
       'Tốc độ 40–60% giúp bánh xe không bị trượt quán tính khi dừng hoặc rẽ.',
-      'Dùng khối "move [↑] for (cm)" cho đoạn thẳng và "move [left/right: ±90]" để rẽ vuông góc.'
+      'Dùng khối "move [↑] for (cm)" cho đoạn thẳng và "move [right: 90]" / "move [left: 90]" để rẽ vuông góc trên sa bàn.',
+      'Trên robot thật, góc rẽ của khối move còn phụ thuộc quãng đường → muốn rẽ chính xác, dùng con quay (xem Kỹ thuật 7).'
     ],
-    sampleBlocks: ['set_movement_motors', 'set_movement_speed', 'set_yaw_angle_to_0', 'move_for_duration', 'move_with_steering']
+    sampleBlocks: [
+      'set_movement_motors',
+      { key: 'set_movement_speed', label: 'set movement speed to 50 %', params: { speed: 50 } },
+      'set_yaw_angle_to_0',
+      { key: 'move_for_duration', label: 'move ↑ for 30 cm', params: { direction: 'forward', value: 30, unit: 'cm' } },
+      {
+        key: 'move_with_steering',
+        label: 'move right: 90 for 1 rotations',
+        params: { steering: 90, steeringText: 'right: 90', value: 1, unit: 'rotations' }
+      }
+    ]
   },
   {
     id: 'tech_2',
@@ -60,7 +71,12 @@ const CORE_TECHNIQUES = [
       '"start moving" bật động cơ chạy liên tục rồi chuyển ngay sang khối tiếp theo.',
       '"wait until < >" giữ chương trình chờ cho đến khi cảm biến báo ĐÚNG thì mới chạy khối "stop moving".'
     ],
-    sampleBlocks: ['start_moving', 'wait_until_sensor', 'sensor_is_closer_than', 'stop_moving']
+    sampleBlocks: [
+      'start_moving',
+      'wait_until_sensor',
+      { key: 'sensor_is_closer_than', label: 'E is closer than 15 cm ?', params: { port: 'E', comp: 'closer than', value: 15, unit: 'cm' } },
+      'stop_moving'
+    ]
   },
   {
     id: 'tech_4',
@@ -74,7 +90,7 @@ const CORE_TECHNIQUES = [
       'Khi cần kiểm tra liên tục trên đường đi, bắt buộc phải đặt khối "if < > then" BÊN TRONG vòng lặp "repeat until" hoặc "forever".',
       'Nếu đặt "if" ở ngoài vòng lặp, chương trình chỉ kiểm tra đúng 1 lần lúc mới chạy rồi bỏ qua!'
     ],
-    sampleBlocks: ['if_then_block', 'if_else_block', 'sensor_is_color']
+    sampleBlocks: ['if_then_block', 'if_else_block', { key: 'sensor_is_color', label: 'D is color red ?', params: { port: 'D', color: 'RED' } }]
   },
   {
     id: 'tech_5',
@@ -88,7 +104,12 @@ const CORE_TECHNIQUES = [
       'Thuật toán 2 trạng thái (Bang-Bang) dùng khối "if <D reflection < 50% ?> then / else" lồng trong "repeat until".',
       'Thuật toán P-Controller nâng cao: Góc lái = (Reflection − 50) × Kp giúp xe chạy êm, không lắc đầu.'
     ],
-    sampleBlocks: ['if_else_block', 'sensor_is_reflection', 'start_moving_steering']
+    sampleBlocks: [
+      'if_else_block',
+      { key: 'sensor_is_reflection', label: 'D reflection < 50 % ?', params: { port: 'D', comp: '<', value: 50 } },
+      { key: 'start_moving_steering', label: 'start moving right: 40', params: { steering: 40 } },
+      { key: 'start_moving_steering', label: 'start moving left: 40', params: { steering: -40 } }
+    ]
   },
   {
     id: 'tech_6',
@@ -102,9 +123,35 @@ const CORE_TECHNIQUES = [
       'Dùng "go [shortest path] to position (x)" (Vị trí tuyệt đối) cho tay nâng để luôn nâng/hạ đúng độ cao cố định.',
       'Dùng "go to relative position (±90)" (Vị trí tương đối) để đóng/mở ngàm kẹp một góc xác định.'
     ],
-    sampleBlocks: ['motor_go_to_position', 'more_motor_go_relative', 'motor_run_for_duration']
+    sampleBlocks: [
+      { key: 'motor_go_to_position', label: 'C go shortest path to position 75', params: { port: 'C', direction: 'shortest path', position: 75 } },
+      { key: 'more_motor_go_relative', label: 'C go to relative position 90', params: { port: 'C', position: 90 } },
+      { key: 'motor_run_for_duration', label: 'C run ↻ for 1 rotations', params: { port: 'C', direction: 'clockwise', value: 1, unit: 'rotations' } }
+    ]
+  },
+  {
+    id: 'tech_7',
+    badge: 'Kỹ thuật 7 · Đi thẳng bằng Gyro (FLL)',
+    title: 'Giữ Hướng bằng Con Quay Hồi Chuyển: Bộ Điều Khiển Tỉ Lệ (P-Controller)',
+    lessonId: 'C4',
+    summary:
+      'Hai động cơ không bao giờ quay giống hệt nhau, nên robot đi "thẳng" 1 m thường lệch vài cm, đủ để trượt mission. Đội FLL giữ hướng bằng cảm biến yaw trong Hub: liên tục đo độ lệch và lái ngược lại.',
+    formula: 'Sai số = Hướng mục tiêu − Yaw hiện tại   ➔   Góc lái = Sai số × Kp   (giới hạn −100…100)',
+    tips: [
+      'Luôn "set yaw angle to 0" khi robot đặt ngay ngắn trong Launch Area, mọi hướng sau đó tính từ mốc này.',
+      'Bắt đầu với Kp = 2. Robot lắc qua lắc lại → giảm Kp; robot sửa chậm, vẫn lệch → tăng Kp. Kp = 0 là không sửa (thử để so sánh!).',
+      'Khối "gyro move straight" (nhóm More Movement) chạy được trên sa bàn và sinh sẵn hàm Python gyro_straight() cho robot thật.'
+    ],
+    sampleBlocks: [
+      'set_yaw_angle_to_0',
+      { key: 'gyro_move_straight', label: 'gyro move straight for 60 cm at 50 % Kp 2', params: { value: 60, speed: 50, kp: 2 } },
+      { key: 'gyro_move_straight', label: 'gyro move straight for 60 cm · Kp 0 (so sánh)', params: { value: 60, speed: 50, kp: 0 } }
+    ]
   }
 ];
+
+// Mỗi khối minh họa có thể là tên khối, hoặc { key, label, params } để hiển thị đúng cổng / đơn vị đang giảng
+const normalizeSample = (s) => (typeof s === 'string' ? { key: s } : s);
 
 export default function BlockEncyclopediaModal({
   onClose,
@@ -177,7 +224,7 @@ export default function BlockEncyclopediaModal({
               }`}
             >
               <Sparkles className="w-3.5 h-3.5" />
-              6 Kỹ Thuật Lập Trình Điều Khiển (Nền Tảng FLL/WRO)
+              {CORE_TECHNIQUES.length} Kỹ Thuật Lập Trình Điều Khiển (Nền Tảng FLL/WRO)
             </button>
 
             <button
@@ -286,20 +333,22 @@ export default function BlockEncyclopediaModal({
                     <span className="text-[10px] font-bold text-slate-400 mr-1">
                       Khối lệnh sử dụng:
                     </span>
-                    {tech.sampleBlocks.map((bKey) => {
+                    {tech.sampleBlocks.map((raw, sIdx) => {
+                      const sample = normalizeSample(raw);
+                      const bKey = sample.key;
                       const bDef = BLOCK_DEFINITIONS[bKey];
                       if (!bDef) return null;
                       return (
                         <button
-                          key={bKey}
+                          key={`${bKey}_${sIdx}`}
                           type="button"
-                          onClick={() => onInsertBlock && onInsertBlock(bKey)}
+                          onClick={() => onInsertBlock && onInsertBlock(bKey, sample.params)}
                           className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold text-white shadow-sm hover:brightness-110"
                           style={{ backgroundColor: bDef.color }}
                           title="Nhấn để thêm khối này vào chương trình"
                         >
                           <Plus className="w-2.5 h-2.5" />
-                          {bDef.nameEn}
+                          {sample.label || bDef.nameEn}
                         </button>
                       );
                     })}

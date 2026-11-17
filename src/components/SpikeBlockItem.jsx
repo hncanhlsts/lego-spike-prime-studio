@@ -2378,6 +2378,36 @@ export default function SpikeBlockItem({
           </div>
         );
 
+      case 'gyro_move_straight':
+        return (
+          <div className="flex items-center gap-1.5 font-semibold text-white text-[12px] whitespace-nowrap">
+            <SpikeWheelBadge />
+            <span className="h-4 border-r border-black/15" />
+            <span>gyro move straight for</span>
+            <input
+              type="number"
+              value={params.value ?? 40}
+              onChange={(e) => update('value', Number(e.target.value))}
+              className={whiteOvalInputClass}
+            />
+            <span>cm at</span>
+            <input
+              type="number"
+              value={params.speed ?? 50}
+              onChange={(e) => update('speed', Number(e.target.value))}
+              className={whiteOvalInputClass}
+            />
+            <span>% Kp</span>
+            <input
+              type="number"
+              step="0.5"
+              value={params.kp ?? 2}
+              onChange={(e) => update('kp', Number(e.target.value))}
+              className={whiteOvalInputClass}
+            />
+          </div>
+        );
+
       case 'more_sensor_raw_color':
         return (
           <div className="flex items-center gap-1.5 font-semibold text-white text-[12px] whitespace-nowrap">

@@ -834,7 +834,7 @@ export const BLOCK_DEFINITIONS = {
     color: '#E6A800',
     spacerTop: true,
     sectionCode: '5.2',
-    nameEn: 'A when color is red',
+    nameEn: 'D when color is red',
     nameVi: 'Khi màu là (When Color Is)',
     description: 'Chạy các khối bên dưới khi Cảm biến màu phát hiện màu được chỉ định.',
     defaultParams: { port: 'D', color: 'RED' },
@@ -846,7 +846,7 @@ export const BLOCK_DEFINITIONS = {
     color: '#E6A800',
     spacerTop: true,
     sectionCode: '5.3',
-    nameEn: 'A when pressed',
+    nameEn: 'F when pressed',
     nameVi: 'Khi lực nhấn là (When Pressure Is)',
     description: 'Chạy các khối gắn bên dưới khi Cảm biến lực được nhấn (pressed), nhấn mạnh (hard-pressed) hoặc thả ra (released).',
     defaultParams: { port: 'F', state: 'pressed' },
@@ -858,10 +858,10 @@ export const BLOCK_DEFINITIONS = {
     color: '#E6A800',
     spacerTop: true,
     sectionCode: '5.4',
-    nameEn: 'A when closer than 15 %',
+    nameEn: 'E when closer than 15 cm',
     nameVi: 'Khi gần hơn (When Closer Than)',
     description: 'Chạy các khối bên dưới khi Cảm biến khoảng cách phát hiện vật ở gần hơn hoặc xa hơn khoảng cách chỉ định.',
-    defaultParams: { port: 'E', comparator: 'closer than', value: 15, unit: '%' },
+    defaultParams: { port: 'E', comparator: 'closer than', value: 15, unit: 'cm' },
     pythonTemplate: (p) => `# Event: when ${p.port} ${p.comparator} ${p.value} ${p.unit}`
   },
   when_tilted_dir: {
@@ -1079,7 +1079,7 @@ export const BLOCK_DEFINITIONS = {
     shape: 'boolean',
     color: '#0EB8D6',
     sectionCode: '7.1',
-    nameEn: 'A is color red ?',
+    nameEn: 'D is color red ?',
     nameVi: 'Cảm biến màu có phải là màu ... không? (Is Color ?)',
     description: 'Khối Boolean: Trả về True nếu Cảm biến màu phát hiện đúng màu được chọn.',
     defaultParams: { port: 'D', color: 'RED' },
@@ -1090,7 +1090,7 @@ export const BLOCK_DEFINITIONS = {
     shape: 'reporter',
     color: '#0EB8D6',
     sectionCode: '7.2',
-    nameEn: 'A color',
+    nameEn: 'D color',
     nameVi: 'Màu sắc của Cảm biến màu (Color Reporter)',
     description: 'Khối Reporter: Trả về mã màu hiện tại mà Cảm biến màu đang nhìn thấy.',
     defaultParams: { port: 'D' },
@@ -1101,7 +1101,7 @@ export const BLOCK_DEFINITIONS = {
     shape: 'boolean',
     color: '#0EB8D6',
     sectionCode: '7.3',
-    nameEn: 'A reflection < 50 % ?',
+    nameEn: 'D reflection < 50 % ?',
     nameVi: 'Ánh sáng phản xạ có < 50% không? (Is Reflected Light ?)',
     description: 'Khối Boolean: So sánh cường độ ánh sáng phản xạ với ngưỡng % (dùng phát hiện vạch đen dò line).',
     defaultParams: { port: 'D', comp: '<', value: 50 },
@@ -1112,7 +1112,7 @@ export const BLOCK_DEFINITIONS = {
     shape: 'reporter',
     color: '#0EB8D6',
     sectionCode: '7.4',
-    nameEn: 'A reflected light',
+    nameEn: 'D reflected light',
     nameVi: 'Cường độ ánh sáng phản xạ (Reflected Light 0-100%)',
     description: 'Khối Reporter: Trả về độ phản xạ ánh sáng từ 0% (đen) đến 100% (trắng).',
     defaultParams: { port: 'D' },
@@ -1124,7 +1124,7 @@ export const BLOCK_DEFINITIONS = {
     color: '#0EB8D6',
     spacerTop: true,
     sectionCode: '7.5',
-    nameEn: 'A is pressed ?',
+    nameEn: 'F is pressed ?',
     nameVi: 'Cảm biến lực có đang được nhấn không? (Is Force Sensor Pressed ?)',
     description: 'Khối Boolean: Trả về True nếu Cảm biến lực đang được nhấn (pressed), nhấn mạnh (hard-pressed) hoặc thả ra (released).',
     defaultParams: { port: 'F', state: 'pressed' },
@@ -1135,7 +1135,7 @@ export const BLOCK_DEFINITIONS = {
     shape: 'reporter',
     color: '#0EB8D6',
     sectionCode: '7.6',
-    nameEn: 'A pressure in %',
+    nameEn: 'F pressure in %',
     nameVi: 'Lực nhấn trên Cảm biến lực (Pressure in % / N)',
     description: 'Khối Reporter: Trả về độ lớn lực nhấn theo % (0-100%) hoặc Newton (0-10 N).',
     defaultParams: { port: 'F', unit: '%' },
@@ -1147,18 +1147,24 @@ export const BLOCK_DEFINITIONS = {
     color: '#0EB8D6',
     spacerTop: true,
     sectionCode: '7.7',
-    nameEn: 'A is closer than 15 % ?',
+    nameEn: 'E is closer than 15 cm ?',
     nameVi: 'Khoảng cách có gần hơn ... không? (Is Distance Closer Than ?)',
     description: 'Khối Boolean: Trả về True khi vật cản ở gần hơn hoặc xa hơn giá trị chỉ định (cm, %, inch).',
-    defaultParams: { port: 'E', comp: 'closer than', value: 15, unit: '%' },
-    pythonTemplate: (p) => `distance_sensor.distance(port.${p.port}) < ${p.value * 10}`
+    defaultParams: { port: 'E', comp: 'closer than', value: 15, unit: 'cm' },
+    pythonTemplate: (p) => {
+      // distance_sensor.distance() trả về mm (-1 nếu không thấy vật)
+      const mm = p.unit === 'in' ? Math.round(p.value * 25.4) : p.unit === '%' ? Math.round(p.value * 20) : Math.round(p.value * 10);
+      return p.comp === 'farther than'
+        ? `distance_sensor.distance(port.${p.port}) > ${mm}`
+        : `-1 < distance_sensor.distance(port.${p.port}) < ${mm}`;
+    }
   },
   sensor_distance: {
     category: 'sensors',
     shape: 'reporter',
     color: '#0EB8D6',
     sectionCode: '7.8',
-    nameEn: 'A distance in %',
+    nameEn: 'E distance in cm',
     nameVi: 'Khoảng cách đo được (Distance in cm / % / in)',
     description: 'Khối Reporter: Trả về khoảng cách từ Cảm biến siêu âm tới vật cản.',
     defaultParams: { port: 'E', unit: 'cm' },
@@ -1758,6 +1764,19 @@ export const BLOCK_DEFINITIONS = {
     defaultParams: { accel: 'medium' },
     pythonTemplate: (p) => `# Set movement acceleration to ${p.accel}`
   },
+  gyro_move_straight: {
+    category: 'more_movement',
+    shape: 'stack',
+    color: '#EA3396',
+    sectionCode: '12.4',
+    nameEn: 'gyro move straight for 40 cm at 50 % Kp 2',
+    nameVi: 'Đi thẳng giữ hướng bằng con quay (Gyro Straight · P-Controller)',
+    description:
+      'Kỹ thuật bắt buộc của đội FLL: robot giữ đúng hướng lúc bắt đầu khối. Mỗi 10 ms đọc góc yaw, tính sai số = hướng mục tiêu − yaw, rồi lái ngược lại một lượng = sai số × Kp. Kp lớn sửa nhanh nhưng dễ lắc; Kp nhỏ êm nhưng sửa chậm.',
+    defaultParams: { value: 40, speed: 50, kp: 2 },
+    pythonTemplate: (p) =>
+      `# gyro move straight ${p.value} cm at ${p.speed}% (Kp=${p.kp}) — xem mã đầy đủ trong tab Python`
+  },
 
   // ================= 13. MORE SENSORS EXTENSION =================
   more_sensor_raw_color: {
@@ -2244,6 +2263,8 @@ function generateBlockLinesRecursive(blockList, indentLevel = 1) {
       const condPy = formatConditionPython(b.conditionBlock, p);
       out.push(`${pad}while not (${condPy}):`);
       out.push(`${pad}    await runloop.sleep_ms(20)`);
+    } else if (b.type === 'gyro_move_straight') {
+      out.push(`${pad}await gyro_straight(${Number(p.value ?? 40)}, ${Number(p.speed ?? 50)}, ${Number(p.kp ?? 2)})`);
     } else {
       out.push(`${pad}${def.pythonTemplate(p)}`);
     }
@@ -2251,15 +2272,49 @@ function generateBlockLinesRecursive(blockList, indentLevel = 1) {
   return out;
 }
 
+// Tìm xem chương trình có dùng khối nào (duyệt cả khối lồng trong C-block)
+function programUsesBlock(blockList, type) {
+  for (const b of blockList || []) {
+    if (!b) continue;
+    if (b.type === type) return true;
+    if (programUsesBlock(b.children, type) || programUsesBlock(b.elseChildren, type)) return true;
+  }
+  return false;
+}
+
+// Hàm Python đi thẳng giữ hướng bằng con quay (P-controller) — chạy được trên SPIKE Prime thật (SPIKE 3)
+const GYRO_STRAIGHT_PY = [
+  '# Đi thẳng giữ hướng bằng con quay (P-controller)',
+  '# cm: quãng đường | speed: % tốc độ | kp: hệ số sửa lái',
+  'async def gyro_straight(cm, speed=50, kp=2):',
+  '    deg_target = abs(cm) * 20.5          # bánh 56 mm: 1 cm ≈ 20.5° quay bánh',
+  '    direction = 1 if cm >= 0 else -1',
+  '    heading = -motion_sensor.tilt_angles()[0] / 10   # yaw (độ, chiều kim đồng hồ dương)',
+  '    motor.reset_relative_position(port.B, 0)',
+  '    while abs(motor.relative_position(port.B)) < deg_target:',
+  '        yaw = -motion_sensor.tilt_angles()[0] / 10',
+  '        error = heading - yaw                # lệch phải → error âm → lái trái',
+  '        steer = int(max(-100, min(100, error * kp)))',
+  '        motor_pair.move(motor_pair.PAIR_1, steer * direction, velocity=int(speed * 10) * direction)',
+  '        await runloop.sleep_ms(10)',
+  '    motor_pair.stop(motor_pair.PAIR_1)',
+  '    # Mẹo: nếu robot càng chạy càng lệch thay vì tự sửa, hãy bỏ dấu "-" ở 2 dòng đọc yaw.',
+  ''
+];
+
 export function generateSpikePythonCode(blocks) {
+  const usesGyro = programUsesBlock(blocks, 'gyro_move_straight');
+  // Khối "set movement motors to" đã tự sinh lệnh pair → không lặp lại ở đầu chương trình
+  const hasPairBlock = programUsesBlock(blocks, 'set_movement_motors');
   const lines = [
     '# LEGO® Education SPIKE™ Prime - Python 3 API (Auto-generated from Word Blocks)',
     '# Thiết kế bởi thầy Hoàng Ngọc Cảnh - Giáo viên trường THCS & THPT Đinh Thiện Lý',
     'from hub import light_matrix, sound, motion_sensor, port',
     'import runloop, motor, motor_pair, color_sensor, distance_sensor, force_sensor, random, math',
     '',
+    ...(usesGyro ? GYRO_STRAIGHT_PY : []),
     'async def main():',
-    '    motor_pair.pair(motor_pair.PAIR_1, port.A, port.B)',
+    ...(hasPairBlock ? [] : ['    motor_pair.pair(motor_pair.PAIR_1, port.A, port.B)']),
     ''
   ];
 
