@@ -135,7 +135,7 @@ export default function FllMatchScorerModal({ onClose }) {
   const avg = history.length ? Math.round(history.reduce((a, h) => a + h.total, 0) / history.length) : 0;
 
   const btn = (active) =>
-    `min-w-[34px] px-2 py-1 rounded-lg text-[11px] font-extrabold border transition ${
+    `min-w-[34px] px-2 py-1 rounded-lg text-xs font-extrabold border transition ${
       active
         ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm'
         : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
@@ -188,7 +188,7 @@ export default function FllMatchScorerModal({ onClose }) {
               <h3 className="text-sm font-extrabold uppercase tracking-wide truncate">
                 FLL Challenge 2026–27 · BIOGLOW™ — Đồng hồ trận & Tính điểm Robot Game
               </h3>
-              <p className="text-[11px] text-emerald-200 truncate">
+              <p className="text-xs text-emerald-200 truncate">
                 Công thức khớp Robot Game Excel Scorer chính thức (cập nhật theo Challenge Updates 14/10/2026). Điểm tối đa {BIOGLOW_MAX_SCORE}.
               </p>
             </div>
@@ -205,7 +205,7 @@ export default function FllMatchScorerModal({ onClose }) {
           {/* Cột trái: đồng hồ + tổng điểm + lịch sử */}
           <div className="lg:w-80 shrink-0 bg-slate-50 border-b lg:border-b-0 lg:border-r border-slate-200 p-4 space-y-4 overflow-y-auto">
             <div className="bg-white rounded-2xl border border-slate-200 p-4 text-center shadow-sm">
-              <div className="flex items-center justify-center gap-1.5 text-[11px] font-extrabold text-slate-500 uppercase">
+              <div className="flex items-center justify-center gap-1.5 text-xs font-extrabold text-slate-500 uppercase">
                 <Timer className="w-3.5 h-3.5" /> Trận đấu 2:30
               </div>
               <div className="font-mono text-6xl font-black my-2 tabular-nums" style={{ color: timerColor }}>
@@ -232,15 +232,15 @@ export default function FllMatchScorerModal({ onClose }) {
                   <RotateCcw className="w-4 h-4" /> Đặt lại
                 </button>
               </div>
-              <p className="text-[11px] text-slate-500 mt-2">
+              <p className="text-xs text-slate-500 mt-2">
                 Đã dùng {fmt(elapsed)} · Bíp cảnh báo khi còn 0:30 và khi hết giờ.
               </p>
             </div>
 
             <div className="bg-slate-900 rounded-2xl p-4 text-center text-white">
-              <div className="text-[11px] font-extrabold text-slate-400 uppercase">Tổng điểm lượt này</div>
+              <div className="text-xs font-extrabold text-slate-400 uppercase">Tổng điểm lượt này</div>
               <div className="text-5xl font-black text-amber-300 tabular-nums">{total}</div>
-              <div className="text-[11px] text-slate-400">/ {BIOGLOW_MAX_SCORE} điểm</div>
+              <div className="text-xs text-slate-400">/ {BIOGLOW_MAX_SCORE} điểm</div>
               <input
                 type="text"
                 value={runNote}
@@ -270,22 +270,22 @@ export default function FllMatchScorerModal({ onClose }) {
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-extrabold text-slate-800">Lịch sử luyện tập ({history.length})</span>
                 {history.length > 0 && (
-                  <button type="button" onClick={clearHistory} className="text-[11px] text-rose-600 font-bold inline-flex items-center gap-1">
+                  <button type="button" onClick={clearHistory} className="text-xs text-rose-600 font-bold inline-flex items-center gap-1">
                     <Trash2 className="w-3 h-3" /> Xóa
                   </button>
                 )}
               </div>
               {history.length === 0 ? (
-                <p className="text-[11px] text-slate-500">Chưa có lượt nào. Chấm điểm rồi bấm "Lưu lượt chạy" để theo dõi độ ổn định của đội.</p>
+                <p className="text-xs text-slate-500">Chưa có lượt nào. Chấm điểm rồi bấm "Lưu lượt chạy" để theo dõi độ ổn định của đội.</p>
               ) : (
                 <>
-                  <div className="flex gap-2 mb-2 text-[11px]">
+                  <div className="flex gap-2 mb-2 text-xs">
                     <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold">Cao nhất: {best}</span>
                     <span className="px-2 py-0.5 rounded bg-sky-100 text-sky-800 font-bold">Trung bình: {avg}</span>
                   </div>
                   <ul className="space-y-1 max-h-48 overflow-y-auto">
                     {history.map((h) => (
-                      <li key={h.id} className="flex items-center justify-between gap-2 text-[11px] border-b border-slate-100 pb-1">
+                      <li key={h.id} className="flex items-center justify-between gap-2 text-xs border-b border-slate-100 pb-1">
                         <span className="text-slate-500 truncate">
                           {h.at}
                           {h.note ? ` · ${h.note}` : ''}
@@ -306,7 +306,7 @@ export default function FllMatchScorerModal({ onClose }) {
                   href={r.url}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex items-center gap-1.5 text-[11px] text-sky-700 hover:underline"
+                  className="flex items-center gap-1.5 text-xs text-sky-700 hover:underline"
                 >
                   <ExternalLink className="w-3 h-3 shrink-0" /> {r.label}
                 </a>
@@ -316,7 +316,7 @@ export default function FllMatchScorerModal({ onClose }) {
 
           {/* Cột phải: phiếu chấm từng mission */}
           <div className="flex-1 overflow-y-auto p-4 bg-slate-100/60">
-            <div className="mb-3 flex items-start gap-2 text-[11px] text-amber-900 bg-amber-50 border border-amber-200 rounded-xl p-2.5">
+            <div className="mb-3 flex items-start gap-2 text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-xl p-2.5">
               <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600" />
               <span>
                 Mission có biểu tượng 🚫 (No Equipment Constraint): mô hình KHÔNG được tính điểm nếu còn chạm thiết bị của đội khi hết trận.
@@ -338,7 +338,7 @@ export default function FllMatchScorerModal({ onClose }) {
                   <div className="p-2.5 space-y-2">
                     {grp.items.map((it) => (
                       <div key={it.key} className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
-                        <span className={`text-[11px] leading-snug ${it.bonus ? 'text-violet-700 font-semibold' : 'text-slate-700'}`} title={it.en}>
+                        <span className={`text-xs leading-snug ${it.bonus ? 'text-violet-700 font-semibold' : 'text-slate-700'}`} title={it.en}>
                           {it.text}
                         </span>
                         <div className="shrink-0">{renderControl(it)}</div>

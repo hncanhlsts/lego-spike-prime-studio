@@ -2121,7 +2121,7 @@ export default function VirtualSimulatorPanel({
           <button
             type="button"
             onClick={() => setShowArenaGallery((v) => !v)}
-            className={`inline-flex items-center gap-1 h-7 px-2 rounded-lg text-[11px] font-extrabold border transition shrink-0 whitespace-nowrap ${
+            className={`inline-flex items-center gap-1 h-8 px-2.5 rounded-lg text-xs font-extrabold border transition shrink-0 whitespace-nowrap ${
               showArenaGallery
                 ? 'bg-fuchsia-500 text-white border-fuchsia-300'
                 : 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-500/50 hover:bg-fuchsia-100'
@@ -2136,7 +2136,7 @@ export default function VirtualSimulatorPanel({
           <select
             value={simMode === '3D' ? scene3DType : mapType}
             onChange={(e) => handleSelectAnyArena(e.target.value)}
-            className={`text-[11px] font-bold h-7 px-2 rounded-lg border focus:outline-none cursor-pointer shrink-0 whitespace-nowrap max-w-[160px] sm:max-w-[190px] truncate ${
+            className={`text-xs font-bold h-8 px-2.5 rounded-lg border focus:outline-none cursor-pointer shrink-0 whitespace-nowrap max-w-[160px] sm:max-w-[190px] truncate ${
               simMode === '3D'
                 ? 'bg-orange-50 text-orange-700 border-orange-500/50'
                 : 'bg-white text-slate-800 border-slate-300'
@@ -2163,7 +2163,7 @@ export default function VirtualSimulatorPanel({
               <button
                 type="button"
                 onClick={handleToggleRuler}
-                className={`inline-flex items-center gap-1 h-7 px-2 rounded-lg text-[11px] font-bold border transition shrink-0 whitespace-nowrap ${
+                className={`inline-flex items-center gap-1 h-8 px-2.5 rounded-lg text-xs font-bold border transition shrink-0 whitespace-nowrap ${
                   isRulerActive
                     ? 'bg-cyan-500 text-slate-950 border-cyan-300 shadow ring-2 ring-cyan-300'
                     : 'bg-cyan-50 hover:bg-cyan-100 text-cyan-700 border-cyan-500/50'
@@ -2180,7 +2180,7 @@ export default function VirtualSimulatorPanel({
                   setIsEditingArena((v) => !v);
                   if (!isEditingArena) setIsRulerActive(false);
                 }}
-                className={`inline-flex items-center gap-1 h-7 px-2 rounded-lg text-[11px] font-bold border transition shrink-0 whitespace-nowrap ${
+                className={`inline-flex items-center gap-1 h-8 px-2.5 rounded-lg text-xs font-bold border transition shrink-0 whitespace-nowrap ${
                   isEditingArena
                     ? 'bg-amber-400 text-slate-950 border-amber-300 shadow'
                     : 'bg-white hover:bg-slate-100 text-amber-700 border-amber-500/40'
@@ -2195,7 +2195,7 @@ export default function VirtualSimulatorPanel({
 
           {/* Ô trạng thái cố định kích thước 1 dòng */}
           <span
-            className={`inline-flex items-center gap-1 h-7 px-2 rounded-full text-[11px] font-bold border shrink-0 whitespace-nowrap ${
+            className={`inline-flex items-center gap-1 h-8 px-2.5 rounded-full text-xs font-bold border shrink-0 whitespace-nowrap ${
               missionCompleted
                 ? 'bg-emerald-50 text-emerald-700 border-emerald-500/40'
                 : 'bg-white text-slate-500 border-slate-200'
@@ -2214,7 +2214,7 @@ export default function VirtualSimulatorPanel({
           <div className="flex items-center gap-1 bg-white p-0.5 rounded-lg border border-slate-200 shrink-0">
             <button
               onClick={() => setSimMode('2D')}
-              className={`inline-flex items-center gap-1 h-6 px-2 rounded text-[11px] font-bold transition shrink-0 whitespace-nowrap ${
+              className={`inline-flex items-center gap-1 h-8 px-2.5 rounded text-xs font-bold transition shrink-0 whitespace-nowrap ${
                 simMode === '2D'
                   ? 'bg-emerald-400 text-slate-950'
                   : 'text-slate-500 hover:text-slate-900'
@@ -2225,7 +2225,7 @@ export default function VirtualSimulatorPanel({
             </button>
             <button
               onClick={() => setSimMode('3D')}
-              className={`inline-flex items-center gap-1 h-6 px-2 rounded text-[11px] font-bold transition shrink-0 whitespace-nowrap ${
+              className={`inline-flex items-center gap-1 h-8 px-2.5 rounded text-xs font-bold transition shrink-0 whitespace-nowrap ${
                 simMode === '3D'
                   ? 'bg-orange-500 text-slate-950'
                   : 'text-slate-500 hover:text-slate-900'
@@ -2238,7 +2238,7 @@ export default function VirtualSimulatorPanel({
 
           <button
             onClick={onResetSimulator}
-            className="inline-flex items-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-800 text-[11px] font-bold h-7 px-2 rounded-lg border border-slate-300 shrink-0 whitespace-nowrap"
+            className="inline-flex items-center gap-1 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold h-8 px-2.5 rounded-lg border border-slate-300 shrink-0 whitespace-nowrap"
           >
             <RotateCcw className="w-3 h-3 shrink-0" />
             <span>Reset</span>
@@ -2254,7 +2254,7 @@ export default function VirtualSimulatorPanel({
             <button
               type="button"
               onClick={() => setEditorTool('draw_line')}
-              className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold ${
+              className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-bold ${
                 editorTool === 'draw_line'
                   ? 'bg-amber-400 text-slate-950 shadow'
                   : 'bg-slate-100 text-slate-800 hover:bg-slate-200'
@@ -2268,7 +2268,7 @@ export default function VirtualSimulatorPanel({
             <button
               type="button"
               onClick={() => setEditorTool('straight_line')}
-              className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold ${
+              className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-bold ${
                 editorTool === 'straight_line'
                   ? 'bg-amber-400 text-slate-950 shadow'
                   : 'bg-slate-100 text-slate-800 hover:bg-slate-200'
@@ -2282,7 +2282,7 @@ export default function VirtualSimulatorPanel({
             <button
               type="button"
               onClick={() => setEditorTool('move_drag')}
-              className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold ${
+              className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-bold ${
                 editorTool === 'move_drag'
                   ? 'bg-sky-400 text-slate-950 shadow'
                   : 'bg-slate-100 text-slate-800 hover:bg-slate-200'
@@ -2296,7 +2296,7 @@ export default function VirtualSimulatorPanel({
             <button
               type="button"
               onClick={() => setEditorTool('start_pose')}
-              className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold ${
+              className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-bold ${
                 editorTool === 'start_pose'
                   ? 'bg-amber-400 text-slate-950'
                   : 'bg-slate-100 text-slate-800 hover:bg-slate-200'
@@ -2317,7 +2317,7 @@ export default function VirtualSimulatorPanel({
                 onUpdateArenaConfig({ ...safeArena, startPose: nextStart });
                 if (onSetStartPose) onSetStartPose(nextStart);
               }}
-              className="inline-flex items-center gap-0.5 px-1.5 py-1 rounded text-[10px] font-bold bg-slate-100 text-amber-700 hover:bg-slate-200"
+              className="inline-flex items-center gap-0.5 px-1.5 py-1 rounded text-xs font-bold bg-slate-100 text-amber-700 hover:bg-slate-200"
               title="Xoay hướng xuất phát của Robot thêm 45 độ"
             >
               <RotateCw className="w-3 h-3" />
@@ -2327,7 +2327,7 @@ export default function VirtualSimulatorPanel({
             <button
               type="button"
               onClick={() => setEditorTool('goal')}
-              className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold ${
+              className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-bold ${
                 editorTool === 'goal'
                   ? 'bg-emerald-400 text-slate-950'
                   : 'bg-slate-100 text-slate-800 hover:bg-slate-200'
@@ -2340,7 +2340,7 @@ export default function VirtualSimulatorPanel({
             <button
               type="button"
               onClick={() => setEditorTool('obstacle')}
-              className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold ${
+              className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-bold ${
                 editorTool === 'obstacle'
                   ? 'bg-rose-500 text-white'
                   : 'bg-slate-100 text-slate-800 hover:bg-slate-200'
@@ -2353,7 +2353,7 @@ export default function VirtualSimulatorPanel({
             <button
               type="button"
               onClick={() => setEditorTool('cargo_box')}
-              className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold ${
+              className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-bold ${
                 editorTool === 'cargo_box'
                   ? 'bg-orange-400 text-slate-950'
                   : 'bg-slate-100 text-slate-800 hover:bg-slate-200'
@@ -2366,7 +2366,7 @@ export default function VirtualSimulatorPanel({
             <button
               type="button"
               onClick={() => setEditorTool('wall_h')}
-              className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold ${
+              className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-bold ${
                 editorTool === 'wall_h'
                   ? 'bg-amber-400 text-slate-950'
                   : 'bg-slate-100 text-slate-800 hover:bg-slate-200'
@@ -2379,7 +2379,7 @@ export default function VirtualSimulatorPanel({
             <button
               type="button"
               onClick={() => setEditorTool('wall_v')}
-              className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold ${
+              className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-bold ${
                 editorTool === 'wall_v'
                   ? 'bg-amber-400 text-slate-950'
                   : 'bg-slate-100 text-slate-800 hover:bg-slate-200'
@@ -2392,7 +2392,7 @@ export default function VirtualSimulatorPanel({
             <button
               type="button"
               onClick={() => setEditorTool('color_patch')}
-              className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold ${
+              className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-bold ${
                 editorTool === 'color_patch'
                   ? 'bg-cyan-400 text-slate-950'
                   : 'bg-slate-100 text-slate-800 hover:bg-slate-200'
@@ -2405,7 +2405,7 @@ export default function VirtualSimulatorPanel({
             <button
               type="button"
               onClick={() => setEditorTool('eraser')}
-              className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold ${
+              className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-bold ${
                 editorTool === 'eraser'
                   ? 'bg-rose-600 text-white'
                   : 'bg-slate-100 text-slate-800 hover:bg-slate-200'
@@ -2417,7 +2417,7 @@ export default function VirtualSimulatorPanel({
           </div>
 
           {/* Hàng 2: Chọn màu/độ dày Line, Mẫu đường Line nhanh, Bắt lưới, Undo & Xóa */}
-          <div className="flex items-center justify-between gap-2 text-[10px] text-slate-700 border-t border-slate-200 pt-1 overflow-x-auto whitespace-nowrap">
+          <div className="flex items-center justify-between gap-2 text-xs text-slate-700 border-t border-slate-200 pt-1 overflow-x-auto whitespace-nowrap">
             <div className="flex items-center gap-2">
               {editorTool === 'draw_line' || editorTool === 'straight_line' ? (
                 <>
@@ -2480,7 +2480,7 @@ export default function VirtualSimulatorPanel({
                       key={c.name}
                       type="button"
                       onClick={() => setSelectedPatchColor(c)}
-                      className={`px-1.5 py-0.5 rounded text-[9px] font-bold text-white ${
+                      className={`px-1.5 py-0.5 rounded text-xs font-bold text-white ${
                         selectedPatchColor.name === c.name ? 'ring-2 ring-slate-900' : 'opacity-70'
                       }`}
                       style={{ backgroundColor: c.hex }}
@@ -2566,13 +2566,13 @@ export default function VirtualSimulatorPanel({
         {/* LỚP NỔI THÔNG TIN VÀ ĐIỀU KHIỂN THƯỚC ĐO KHI ĐANG BẬT THƯỚC */}
         {isRulerActive && simMode === '2D' && (
           <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 bg-white backdrop-blur-md border border-cyan-400/60 shadow-[0_4px_24px_rgba(6,182,212,0.35)] px-3 py-1.5 rounded-xl flex items-center gap-2 text-xs">
-            <div className="flex items-center gap-1.5 text-cyan-700 font-extrabold text-[11px]">
+            <div className="flex items-center gap-1.5 text-cyan-700 font-extrabold text-xs">
               <Ruler className="w-4 h-4 text-cyan-600 shrink-0" />
               <span className="hidden sm:inline">Kéo chuột đo:</span>
             </div>
 
             {rulerPoints && (
-              <div className="flex items-center gap-2 font-mono text-[11px] bg-slate-100 px-2.5 py-0.5 rounded-lg border border-slate-200">
+              <div className="flex items-center gap-2 font-mono text-xs bg-slate-100 px-2.5 py-0.5 rounded-lg border border-slate-200">
                 <span className="text-cyan-700 font-black">
                   {(Math.hypot(rulerPoints.end.x - rulerPoints.start.x, rulerPoints.end.y - rulerPoints.start.y) / getPxPerCm()).toFixed(1)} cm
                 </span>
@@ -2594,7 +2594,7 @@ export default function VirtualSimulatorPanel({
                   }
                 });
               }}
-              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-cyan-50 hover:bg-cyan-100 text-cyan-700 border border-cyan-300 text-[10px] font-bold transition"
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-cyan-50 hover:bg-cyan-100 text-cyan-700 border border-cyan-300 text-xs font-bold transition"
               title="Đặt gốc thước đo ngay tại tâm Robot"
             >
               <Navigation className="w-3 h-3 text-cyan-600" />
@@ -2619,7 +2619,7 @@ export default function VirtualSimulatorPanel({
                   setCopiedMeasurement(true);
                   setTimeout(() => setCopiedMeasurement(false), 2000);
                 }}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black shadow transition"
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black shadow transition"
                 title="Tự động thêm khối lệnh Rẽ và Đi thẳng vào vùng lập trình theo đúng khoảng cách và góc vừa đo"
               >
                 {copiedMeasurement ? <Check className="w-3 h-3 text-white" /> : <Sparkles className="w-3 h-3 text-amber-700" />}
@@ -2630,7 +2630,7 @@ export default function VirtualSimulatorPanel({
             <button
               type="button"
               onClick={() => setRulerPoints(null)}
-              className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 text-[10px] font-bold transition"
+              className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 text-xs font-bold transition"
               title="Xóa đường thước đo hiện tại"
             >
               ✕ Xóa Thước
@@ -2679,13 +2679,13 @@ export default function VirtualSimulatorPanel({
               <button
                 type="button"
                 onClick={() => setShowArenaGallery(false)}
-                className="px-2.5 py-0.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-800 text-[11px] font-bold"
+                className="px-2.5 py-0.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold"
               >
                 Đóng ✕
               </button>
             </div>
 
-            <div className="text-[11px] font-extrabold text-orange-700 mb-1.5">
+            <div className="text-xs font-extrabold text-orange-700 mb-1.5">
               🧊 {SCENE_3D_OPTIONS.length} SA BÀN 3D — KÉO THẢ, GẮP NÂNG, XE NÂNG, CẦN CẨU, XE ỦI, CẦU RÚT
             </div>
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-1.5 mb-3">
@@ -2704,7 +2704,7 @@ export default function VirtualSimulatorPanel({
                     }`}
                   >
                     <div className="text-lg leading-none mb-1">{icons[i] || '🧊'}</div>
-                    <div className="text-[10px] font-bold text-slate-800 leading-snug whitespace-normal">
+                    <div className="text-xs font-bold text-slate-800 leading-snug whitespace-normal">
                       {opt.label.replace(/^3D Sa bàn \d+: /, '')}
                     </div>
                   </button>
@@ -2712,7 +2712,7 @@ export default function VirtualSimulatorPanel({
               })}
             </div>
 
-            <div className="text-[11px] font-extrabold text-emerald-700 mb-1.5">
+            <div className="text-xs font-extrabold text-emerald-700 mb-1.5">
               🗺 {MAP_2D_OPTIONS.length} SA BÀN 2D — DÒ LINE, MÊ CUNG, CẢM BIẾN, THI ĐẤU
             </div>
             <div className="grid grid-cols-2 lg:grid-cols-3 gap-1.5">
@@ -2729,7 +2729,7 @@ export default function VirtualSimulatorPanel({
                         : 'border-slate-300 bg-white hover:border-emerald-400/70'
                     }`}
                   >
-                    <div className="text-[10px] font-bold text-slate-800 leading-snug whitespace-normal">
+                    <div className="text-xs font-bold text-slate-800 leading-snug whitespace-normal">
                       {opt.label}
                     </div>
                   </button>
@@ -2741,7 +2741,7 @@ export default function VirtualSimulatorPanel({
 
         {/* Thông báo hoàn thành nhiệm vụ dạng Overlay nổi cố định góc dưới phải */}
         {missionCompleted && simMode === '2D' && !isEditingArena && (
-          <div className="absolute bottom-2.5 right-3 pointer-events-none bg-emerald-50 backdrop-blur border border-emerald-400/60 text-emerald-700 px-3 py-1 rounded-full shadow-lg flex items-center gap-1.5 text-[11px] font-bold">
+          <div className="absolute bottom-2.5 right-3 pointer-events-none bg-emerald-50 backdrop-blur border border-emerald-400/60 text-emerald-700 px-3 py-1 rounded-full shadow-lg flex items-center gap-1.5 text-xs font-bold">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
             <span>Hoàn thành nhiệm vụ! Sẵn sàng kết nối Robot thật</span>
           </div>
@@ -2757,7 +2757,7 @@ export default function VirtualSimulatorPanel({
 
         {/* THANH ĐIỀU KHIỂN TƯƠNG TÁC TRỰC TIẾP TRONG KHÔNG GIAN 3D */}
         {simMode === '3D' && (
-          <div className="absolute bottom-2 left-2.5 right-2.5 flex items-center justify-between gap-2 bg-white backdrop-blur border border-slate-300 px-2.5 py-1.5 rounded-xl text-[10px] overflow-x-auto whitespace-nowrap">
+          <div className="absolute bottom-2 left-2.5 right-2.5 flex items-center justify-between gap-2 bg-white backdrop-blur border border-slate-300 px-2.5 py-1.5 rounded-xl text-xs overflow-x-auto whitespace-nowrap">
             <div className="flex items-center gap-1 shrink-0">
               <button
                 type="button"
@@ -2854,16 +2854,11 @@ export default function VirtualSimulatorPanel({
         )}
 
         <div className="absolute top-2 left-2.5 flex flex-wrap items-center gap-1.5 pointer-events-none">
-          <span className="bg-white/95 text-slate-800 text-[10px] font-mono px-2 py-0.5 rounded border border-slate-200">
+          <span className="bg-white/95 text-slate-800 text-xs font-mono px-2 py-0.5 rounded border border-slate-200">
             Driving Base (A+B): X={Math.round(robotPose.x)} Y={Math.round(robotPose.y)} | Yaw=
             {Math.round(telemetry.gyroYaw)}°
           </span>
-          <span className="bg-white/95 text-cyan-700 text-[10px] font-mono px-2 py-0.5 rounded border border-slate-200">
-            [E] distance = {Math.round(telemetry.distanceSensor.cm)} cm
-          </span>
-          <span className="bg-white/95 text-purple-700 text-[10px] font-mono px-2 py-0.5 rounded border border-slate-200">
-            [D] color = {telemetry.colorSensor.color} ({telemetry.colorSensor.reflection}%)
-          </span>
+          {/* Giá trị cảm biến D/E/F hiển thị ở bảng cảm biến bên dưới sa bàn — không lặp lại ở đây */}
         </div>
       </div>
     </div>

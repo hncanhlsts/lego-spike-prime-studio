@@ -2560,7 +2560,7 @@ export default function App() {
     const draggedDef = BLOCK_DEFINITIONS[dragState.block.type];
     return (
       <div className="my-1.5 flex items-center animate-pulse">
-        <div className="h-3 w-52 rounded-md border-2 border-dashed border-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.75)] flex items-center px-2 text-[10px] font-extrabold text-amber-800 bg-amber-100/90">
+        <div className="h-3 w-52 rounded-md border-2 border-dashed border-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.75)] flex items-center px-2 text-xs font-extrabold text-amber-800 bg-amber-100/90">
           <span>↳ Thả để ghép [{draggedDef?.nameEn}] vào đây</span>
         </div>
       </div>
@@ -2583,7 +2583,7 @@ export default function App() {
         >
           <SpikeBlockItem block={dragState.block} isPalette={true} />
           {dragState.source === 'canvas' && dragState.overTrash && (
-            <div className="mt-1 bg-rose-600 text-white text-[11px] font-extrabold px-2.5 py-0.5 rounded-full shadow flex items-center gap-1 w-fit">
+            <div className="mt-1 bg-rose-600 text-white text-xs font-extrabold px-2.5 py-0.5 rounded-full shadow flex items-center gap-1 w-fit">
               <Trash2 className="w-3.5 h-3.5" />
               Thả để xóa khối này
             </div>
@@ -2603,7 +2603,7 @@ export default function App() {
                   <h3 className="text-sm font-extrabold uppercase tracking-wide">
                     🎯 Mission & Arena Studio — Thiết Kế Nhiệm Vụ & Sa Bàn Linh Động
                   </h3>
-                  <p className="text-[11px] text-slate-400">
+                  <p className="text-xs text-slate-400">
                     Tạo không giới hạn cấp độ/nhiệm vụ mới, lưu sa bàn tự vẽ, chỉnh sửa đề bài và xuất/nhập file .JSON chia sẻ cho học sinh
                   </p>
                 </div>
@@ -2683,14 +2683,14 @@ export default function App() {
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
                             <div className="flex items-center gap-1.5">
-                              <span className="px-1.5 py-0.5 rounded bg-slate-900 text-amber-300 text-[10px] font-extrabold">
+                              <span className="px-1.5 py-0.5 rounded bg-slate-900 text-amber-300 text-xs font-extrabold">
                                 #{idx + 1}
                               </span>
-                              <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 text-[10px] font-bold">
+                              <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 text-xs font-bold">
                                 {m.mode}
                               </span>
                               {m.isCustom && (
-                                <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                                <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 text-xs font-bold">
                                   Tự thiết kế
                                 </span>
                               )}
@@ -2701,7 +2701,7 @@ export default function App() {
                             <div className="text-xs font-extrabold text-slate-900 mt-1 truncate">
                               {m.title}
                             </div>
-                            <div className="text-[11px] text-slate-500 truncate">{m.objective}</div>
+                            <div className="text-xs text-slate-500 truncate">{m.objective}</div>
                           </div>
 
                           <div
@@ -2736,7 +2736,7 @@ export default function App() {
               <div className="col-span-7 p-5 overflow-y-auto space-y-4 bg-white">
                 <div className="flex items-center justify-between border-b border-slate-200 pb-3">
                   <div>
-                    <span className="text-[11px] font-extrabold uppercase text-amber-600">
+                    <span className="text-xs font-extrabold uppercase text-amber-600">
                       Đang chỉnh sửa nhiệm vụ
                     </span>
                     <h4 className="text-base font-extrabold text-slate-900">
@@ -2861,12 +2861,12 @@ export default function App() {
                           '🛠 Hãy nhấn nút "🛠 Thiết Kế Sa Bàn" màu vàng ở góc trên phải của Sa bàn 2D để vẽ đường line, đặt Đích GOAL, Tường & Vật cản!'
                         );
                       }}
-                      className="px-3 py-1 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-950 text-[11px] font-extrabold"
+                      className="px-3 py-1 rounded-lg bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-extrabold"
                     >
                       Mở Công Cụ Vẽ Trực Tiếp Trên Sa Bàn 2D →
                     </button>
                   </div>
-                  <div className="grid grid-cols-5 gap-2 text-center text-[11px]">
+                  <div className="grid grid-cols-5 gap-2 text-center text-xs">
                     <div className="bg-slate-800 rounded-lg p-2">
                       <div className="font-mono font-extrabold text-sm text-amber-300">
                         {arenaConfig?.lines?.length || 0}
@@ -2949,7 +2949,7 @@ export default function App() {
                           </span>
                         </div>
                         <span
-                          className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${
+                          className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${
                             isEnabled
                               ? 'bg-blue-600 text-white'
                               : 'bg-slate-100 text-slate-500'
@@ -2961,7 +2961,7 @@ export default function App() {
                       <div className="text-xs font-semibold text-slate-700 mb-1">
                         {ext.nameVi}
                       </div>
-                      <p className="text-[11px] text-slate-500 leading-relaxed">
+                      <p className="text-xs text-slate-500 leading-relaxed">
                         {ext.description}
                       </p>
                     </div>
@@ -3086,7 +3086,7 @@ export default function App() {
                       <span className="font-bold">
                         #{i + 1} {bDef?.nameEn || b.type}
                       </span>
-                      <span className="text-[10px] opacity-90">{bDef?.nameVi}</span>
+                      <span className="text-xs opacity-90">{bDef?.nameVi}</span>
                     </div>
                   );
                 })}
@@ -3147,7 +3147,7 @@ export default function App() {
 
             {gradingResult.criteriaResults && gradingResult.criteriaResults.length > 0 && (
               <div className="text-left text-xs mb-5 space-y-1.5">
-                <div className="font-extrabold text-slate-700 mb-1 uppercase text-[10px] tracking-wider">
+                <div className="font-extrabold text-slate-700 mb-1 uppercase text-xs tracking-wider">
                   Bảng kiểm tiêu chí:
                 </div>
                 {gradingResult.criteriaResults.map((c, i) => (
@@ -3157,7 +3157,7 @@ export default function App() {
                   >
                     <span className="text-slate-700 font-semibold">{c.label}</span>
                     <span
-                      className={`inline-flex items-center gap-1 font-bold px-2 py-0.5 rounded text-[10px] ${
+                      className={`inline-flex items-center gap-1 font-bold px-2 py-0.5 rounded text-xs ${
                         c.passed
                           ? 'bg-emerald-100 text-emerald-700'
                           : 'bg-rose-100 text-rose-700'
@@ -3358,16 +3358,18 @@ export default function App() {
       {/* THANH ĐỀ BÀI, TIÊU CHÍ ĐẠT & GỢI Ý DÀNH CHO HỌC SINH */}
       <div className="bg-amber-50/90 border-b border-amber-200 px-3.5 py-1.5 text-xs text-slate-800 flex flex-col gap-1 shrink-0 z-20">
         <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
-          <div className="flex items-center gap-2 min-w-0 flex-1 basis-64">
-            <span className="px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 font-extrabold text-[10px] shrink-0">
+          <div className="flex items-start gap-2 min-w-0 flex-1 basis-64">
+            <span className="mt-0.5 px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 font-extrabold text-xs shrink-0">
               {currentLesson.level || 'Nhiệm vụ'}
             </span>
-            <span className="font-extrabold text-slate-900 truncate">
-              {currentLesson.title}:
-            </span>
-            <span className="text-slate-700 truncate">
+            {/* Đề bài hiện đầy đủ (tối đa 2 dòng khi đang mở, bấm ˄ để thu gọn còn 1 dòng) */}
+            <p
+              className={`min-w-0 text-[13px] leading-snug text-slate-700 ${showBriefBar ? 'line-clamp-2' : 'truncate'}`}
+              title={`${currentLesson.title}: ${currentLesson.objective || ''}`}
+            >
+              <strong className="font-extrabold text-slate-900">{currentLesson.title}:</strong>{' '}
               {currentLesson.objective}
-            </span>
+            </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5 shrink-0">
@@ -3381,7 +3383,7 @@ export default function App() {
                 playSnapClick(480);
                 setStatusLog('🔄 Đã nạp lại Code Khởi Đầu của bài học.');
               }}
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-700 font-bold text-[11px] border border-slate-300 shadow-sm"
+              className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs border border-slate-300 shadow-sm"
               title="Khôi phục chồng lệnh về trạng thái ban đầu của bài học"
             >
               <RotateCcw className="w-3 h-3 text-blue-600" />
@@ -3396,7 +3398,7 @@ export default function App() {
                     prev < currentLesson.hints.length ? prev + 1 : 1
                   );
                 }}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-yellow-400 hover:bg-yellow-300 text-slate-950 font-extrabold text-[11px] shadow-sm"
+                className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-yellow-400 hover:bg-yellow-300 text-slate-950 font-extrabold text-xs shadow-sm"
               >
                 <Lightbulb className="w-3 h-3 text-amber-900" />
                 <span>
@@ -3414,20 +3416,20 @@ export default function App() {
                   setShowSolutionPreviewModal(true);
                 }
               }}
-              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg font-bold text-[11px] border shadow-sm ${
+              className={`inline-flex items-center gap-1 h-8 px-3 rounded-lg font-bold text-xs border shadow-sm ${
                 currentLesson.lockSolution && roleMode === 'student'
-                  ? 'bg-slate-100 text-slate-500 border-slate-300 hover:bg-slate-200'
-                  : 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-500'
+                  ? 'bg-slate-100 text-slate-600 border-slate-300 hover:bg-slate-200'
+                  : 'bg-white hover:bg-emerald-50 text-emerald-800 border-emerald-400'
               }`}
             >
               {currentLesson.lockSolution && roleMode === 'student' ? (
                 <>
-                  <Lock className="w-3 h-3 text-slate-400" />
+                  <Lock className="w-3.5 h-3.5 text-slate-500" />
                   <span>Lời giải (Khóa)</span>
                 </>
               ) : (
                 <>
-                  <Sparkles className="w-3 h-3 text-amber-300" />
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
                   <span>Xem Lời Giải Mẫu</span>
                 </>
               )}
@@ -3435,23 +3437,24 @@ export default function App() {
 
             <button
               onClick={() => setShowBriefBar((v) => !v)}
-              className="p-1 rounded text-slate-500 hover:text-slate-800"
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-600 hover:text-slate-900 hover:bg-amber-100"
               title={showBriefBar ? 'Thu gọn đề bài' : 'Mở rộng đề bài'}
+              aria-label={showBriefBar ? 'Thu gọn đề bài' : 'Mở rộng đề bài'}
             >
-              {showBriefBar ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              {showBriefBar ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </button>
           </div>
         </div>
 
         {/* Nội dung chi tiết: Tiêu chí đạt + Gợi ý đang mở */}
         {showBriefBar && (
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-amber-200/80 text-[11px]">
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-amber-200/80 text-xs">
             <div className="flex items-center gap-1.5 flex-wrap">
               <span className="font-extrabold text-slate-800">Tiêu chí hoàn thành:</span>
               {(currentLesson.successCriteria || [currentLesson.objective]).map((c, i) => (
                 <span
                   key={i}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white text-emerald-800 border border-emerald-300 font-semibold text-[10px]"
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white text-emerald-800 border border-emerald-300 font-semibold text-xs"
                 >
                   <Check className="w-2.5 h-2.5 text-emerald-600" />
                   {c}
@@ -3569,13 +3572,21 @@ export default function App() {
               <button
                 key={cat.id}
                 onClick={() => scrollToCategory(cat.id)}
-                className="flex flex-col items-center justify-center w-full py-1 rounded-lg hover:bg-slate-100 transition group"
+                title={cat.nameEn}
+                aria-label={cat.nameEn}
+                className={`flex flex-col items-center justify-center w-full rounded-lg hover:bg-slate-100 transition group ${
+                  isPhone ? 'py-2' : 'py-1'
+                }`}
               >
                 <span
-                  className="w-5 h-5 rounded-full shadow-sm group-hover:scale-110 transition"
+                  className={`rounded-full shadow-sm group-hover:scale-110 transition ${isPhone ? 'w-7 h-7' : 'w-5 h-5'}`}
                   style={{ backgroundColor: cat.color }}
                 />
-                <span className="text-[9px] font-extrabold uppercase tracking-tighter text-slate-600 mt-0.5 text-center leading-tight">
+                <span
+                  className={`text-[11px] font-semibold text-slate-700 mt-0.5 text-center leading-tight w-full ${
+                    isPhone ? 'hidden' : ''
+                  }`}
+                >
                   {cat.nameEn}
                 </span>
               </button>
@@ -3620,9 +3631,9 @@ export default function App() {
             </div>
           )}
 
-          <div className="px-3 py-1.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between text-[11px] text-slate-600 font-semibold">
+          <div className="px-3 py-1.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between text-xs text-slate-600 font-semibold">
             <span>✋ Giữ chuột kéo khối sang phải</span>
-            <span className="text-[10px] text-slate-400">SPIKE™ Word Blocks</span>
+            <span className={`text-xs text-slate-500 shrink-0 ${isCompact ? 'hidden' : ''}`}>SPIKE™ Word Blocks</span>
           </div>
 
           <div
@@ -3642,7 +3653,7 @@ export default function App() {
                 >
                   <div className="flex items-baseline justify-between pb-1">
                     <h3 className="text-[17px] font-bold text-[#737373]">{cat.nameEn}</h3>
-                    <span className="text-[10px] font-semibold text-slate-400">{cat.nameVi}</span>
+                    <span className="text-xs font-semibold text-slate-500">{cat.nameVi}</span>
                   </div>
 
                   {cat.id === 'variables' && (
@@ -3697,7 +3708,7 @@ export default function App() {
             <span>⋮ SPIKE™ Prime</span>
             <button
               onClick={() => setShowExtensionsModal(true)}
-              className="text-[11px] text-blue-600 hover:underline font-bold"
+              className="inline-flex items-center h-8 px-2 rounded-lg text-xs text-blue-700 hover:bg-blue-50 font-bold"
             >
               + Extensions
             </button>
@@ -3735,7 +3746,7 @@ export default function App() {
                     <span className="w-2 h-2 rounded-full border border-slate-800" />
                   </div>
                 </button>
-                <span className="text-[11px] font-semibold text-slate-600 mt-1">
+                <span className="text-xs font-semibold text-slate-600 mt-1">
                   {bleStatus.state === 'connected' ? 'Connected' : 'Connect'}
                 </span>
               </div>
@@ -3759,45 +3770,45 @@ export default function App() {
                         ))
                       )}
                     </div>
-                    <div className="text-[10px] font-bold text-slate-900 pr-1">
+                    <div className="text-xs font-bold text-slate-900 pr-1">
                       <div>Hub 5x5</div>
-                      <div className="font-mono text-[9px]">Yaw: {Math.round(telemetry.gyroYaw)}°</div>
+                      <div className="font-mono text-xs">Yaw: {Math.round(telemetry.gyroYaw)}°</div>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 text-[10px]">
-                    <div className="bg-slate-50 px-2 py-1 rounded-lg border border-slate-200">
+                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 text-xs">
+                    <div className="bg-slate-50 px-2 py-1 rounded-lg border border-slate-200 whitespace-nowrap">
                       <span className="font-black text-blue-600">A:</span>{' '}
                       <span className="font-mono font-bold">
                         {Math.round(((telemetry.motors.A.angle % 360) + 360) % 360)}°
                       </span>
                     </div>
-                    <div className="bg-slate-50 px-2 py-1 rounded-lg border border-slate-200">
+                    <div className="bg-slate-50 px-2 py-1 rounded-lg border border-slate-200 whitespace-nowrap">
                       <span className="font-black text-blue-600">B:</span>{' '}
                       <span className="font-mono font-bold">
                         {Math.round(((telemetry.motors.B.angle % 360) + 360) % 360)}°
                       </span>
                     </div>
-                    <div className="bg-slate-50 px-2 py-1 rounded-lg border border-slate-200">
+                    <div className="bg-slate-50 px-2 py-1 rounded-lg border border-slate-200 whitespace-nowrap">
                       <span className="font-black text-blue-600">C:</span>{' '}
                       <span className="font-mono font-bold">
                         {Math.round(((telemetry.motors.C.angle % 360) + 360) % 360)}°
                       </span>
                     </div>
-                    <div className="bg-slate-50 px-2 py-1 rounded-lg border border-slate-200">
-                      <span className="font-black text-cyan-600">D:</span>{' '}
+                    <div className="bg-slate-50 px-2 py-1 rounded-lg border border-slate-200 whitespace-nowrap">
+                      <span className="font-black text-cyan-800">D:</span>{' '}
                       <span className="font-mono font-bold">
                         {telemetry.colorSensor.reflection}%
                       </span>
                     </div>
-                    <div className="bg-slate-50 px-2 py-1 rounded-lg border border-slate-200">
-                      <span className="font-black text-cyan-600">E:</span>{' '}
+                    <div className="bg-slate-50 px-2 py-1 rounded-lg border border-slate-200 whitespace-nowrap">
+                      <span className="font-black text-cyan-800">E:</span>{' '}
                       <span className="font-mono font-bold">
                         {Math.round(telemetry.distanceSensor.cm)}cm
                       </span>
                     </div>
-                    <div className="bg-slate-50 px-2 py-1 rounded-lg border border-slate-200">
-                      <span className="font-black text-pink-600">F:</span>{' '}
+                    <div className="bg-slate-50 px-2 py-1 rounded-lg border border-slate-200 whitespace-nowrap">
+                      <span className="font-black text-pink-700">F:</span>{' '}
                       <span className="font-mono font-bold">
                         {telemetry.forceSensor.newton}N
                       </span>
@@ -3872,7 +3883,7 @@ export default function App() {
                       onClick={() => {
                         codeScrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
                       }}
-                      className="p-1.5 rounded-lg bg-slate-900/90 hover:bg-slate-800 text-white border border-slate-700 shadow flex items-center justify-center text-[10px] font-bold gap-1 px-2.5 transition"
+                      className="p-1.5 rounded-lg bg-slate-900/90 hover:bg-slate-800 text-white border border-slate-700 shadow flex items-center justify-center text-xs font-bold gap-1 px-2.5 transition"
                       title="Cuộn lên đầu chương trình"
                     >
                       <ChevronUp className="w-3.5 h-3.5 text-amber-400" />
@@ -3888,7 +3899,7 @@ export default function App() {
                           });
                         }
                       }}
-                      className="p-1.5 rounded-lg bg-slate-900/90 hover:bg-slate-800 text-white border border-slate-700 shadow flex items-center justify-center text-[10px] font-bold gap-1 px-2.5 transition"
+                      className="p-1.5 rounded-lg bg-slate-900/90 hover:bg-slate-800 text-white border border-slate-700 shadow flex items-center justify-center text-xs font-bold gap-1 px-2.5 transition"
                       title="Cuộn xuống cuối chương trình"
                     >
                       <ChevronDown className="w-3.5 h-3.5 text-cyan-400" />
@@ -3905,7 +3916,7 @@ export default function App() {
                 {hoveredBlockDesc ? (
                   <span className="truncate">
                     <span
-                      className="inline-block text-white font-bold px-1.5 py-0.5 rounded text-[10px] mr-1.5"
+                      className="inline-block text-white font-bold px-1.5 py-0.5 rounded text-xs mr-1.5"
                       style={{ backgroundColor: hoveredBlockDesc.color }}
                     >
                       Mục {hoveredBlockDesc.sectionCode}
@@ -3924,7 +3935,7 @@ export default function App() {
                 <button
                   onClick={handleUndo}
                   title="Hoàn tác thao tác khối lệnh (Undo — Ctrl+Z)"
-                  className="inline-flex items-center gap-1 px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs border border-slate-300 transition"
+                  className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs border border-slate-300 transition"
                 >
                   <Undo2 className="w-3.5 h-3.5 text-amber-600" />
                   <span>Undo</span>
@@ -3932,7 +3943,7 @@ export default function App() {
                 <button
                   onClick={handleRedo}
                   title="Làm lại thao tác khối lệnh (Redo — Ctrl+Y)"
-                  className="inline-flex items-center gap-1 px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs border border-slate-300 transition"
+                  className="inline-flex items-center gap-1 h-8 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs border border-slate-300 transition"
                 >
                   <Redo2 className="w-3.5 h-3.5 text-emerald-600" />
                   <span>Redo</span>
@@ -3961,21 +3972,21 @@ export default function App() {
                 >
                   <ZoomIn className="w-4 h-4" />
                 </button>
-                <span className="text-[11px] font-mono text-slate-400 px-1">{canvasZoom}%</span>
+                <span className="text-xs font-mono text-slate-600 px-1">{canvasZoom}%</span>
               </div>
 
-              <div className="flex items-center gap-3 text-[11px] font-semibold text-slate-500">
-                <span>
-                  Chồng lệnh: <strong>{blocks.length}</strong> khối
+              <div className="flex items-center gap-3 text-xs font-semibold text-slate-600 whitespace-nowrap">
+                <span className="hidden xl:inline">
+                  <strong>{blocks.length}</strong> khối
                 </span>
                 <button
                   onClick={() =>
                     setBlocks([{ id: 'b0', type: 'when_program_starts', params: {} }])
                   }
-                  className="text-rose-600 hover:underline flex items-center gap-1"
+                  className="h-8 px-2 rounded-lg text-rose-700 hover:bg-rose-50 flex items-center gap-1" title="Xóa toàn bộ chồng lệnh, chỉ giữ khối mũ"
                 >
                   <Trash2 className="w-3 h-3" />
-                  Làm mới chồng lệnh
+                  Làm mới
                 </button>
               </div>
             </div>
@@ -4001,7 +4012,7 @@ export default function App() {
                 <div className="flex flex-wrap items-center gap-1 min-w-0">
                   <button
                     onClick={() => setRightRedZoneTab('arena')}
-                    className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-extrabold transition shrink-0 ${
+                    className={`flex items-center gap-1 h-8 px-3 rounded-lg text-xs font-extrabold transition shrink-0 ${
                       rightRedZoneTab === 'arena'
                         ? 'bg-slate-900 text-white shadow'
                         : 'text-slate-700 hover:bg-slate-100'
@@ -4012,7 +4023,7 @@ export default function App() {
 
                   <button
                     onClick={() => setRightRedZoneTab('hub')}
-                    className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold transition shrink-0 ${
+                    className={`flex items-center gap-1 h-8 px-2.5 rounded-lg text-xs font-bold transition shrink-0 ${
                       rightRedZoneTab === 'hub'
                         ? 'bg-slate-900 text-white shadow'
                         : 'text-slate-700 hover:bg-slate-100'
@@ -4025,7 +4036,7 @@ export default function App() {
 
                   <button
                     onClick={() => setRightRedZoneTab('python')}
-                    className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold transition shrink-0 ${
+                    className={`flex items-center gap-1 h-8 px-2.5 rounded-lg text-xs font-bold transition shrink-0 ${
                       rightRedZoneTab === 'python'
                         ? 'bg-slate-900 text-white shadow'
                         : 'text-slate-700 hover:bg-slate-100'
@@ -4038,7 +4049,7 @@ export default function App() {
 
                   <button
                     onClick={() => setRightRedZoneTab('builder')}
-                    className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold transition shrink-0 ${
+                    className={`flex items-center gap-1 h-8 px-2.5 rounded-lg text-xs font-bold transition shrink-0 ${
                       rightRedZoneTab === 'builder'
                         ? 'bg-slate-900 text-white shadow'
                         : 'text-slate-700 hover:bg-slate-100'
@@ -4053,7 +4064,7 @@ export default function App() {
                 <div className="flex flex-wrap items-center gap-1.5 shrink-0">
                   {/* CHỌN ĐỘ RỘNG KHUNG SA BÀN (ẩn ở bố cục tab màn hình hẹp) */}
                   <label
-                    className={`items-center gap-1 text-[11px] font-bold text-slate-600 ${isCompact ? 'hidden' : 'flex'}`}
+                    className={`items-center gap-1 text-xs font-bold text-slate-600 ${isCompact ? 'hidden' : 'flex'}`}
                     title="Chọn độ rộng của khung sa bàn so với vùng lập trình"
                   >
                     <span>Khung:</span>
@@ -4076,7 +4087,7 @@ export default function App() {
                     className={`h-9 px-3 rounded-full flex items-center gap-1.5 text-xs font-extrabold transition border ${
                       isRunning
                         ? 'bg-rose-600 hover:bg-rose-500 text-white border-rose-600'
-                        : 'bg-white text-slate-400 border-slate-300 cursor-not-allowed'
+                        : 'bg-white text-slate-500 border-slate-300 cursor-not-allowed'
                     }`}
                   >
                     <Square className="w-3.5 h-3.5 fill-current" />
@@ -4140,7 +4151,7 @@ export default function App() {
 
                   <div className="shrink-0 bg-white border-t border-slate-200 px-3 py-2 grid grid-cols-3 gap-2 text-xs">
                     <div className="bg-white/95 p-1.5 rounded-lg border border-slate-200">
-                      <div className="flex justify-between text-[10px] text-slate-500 mb-1">
+                      <div className="flex justify-between text-xs text-slate-500 mb-1">
                         <span>Color (D):</span>
                         <span className="font-mono text-cyan-700 font-bold">
                           {telemetry.colorSensor.color} ({telemetry.colorSensor.reflection}%)
@@ -4156,7 +4167,7 @@ export default function App() {
                                 reflection: sw.reflection
                               })
                             }
-                            className={`w-4 h-4 rounded-full border ${
+                            className={`w-6 h-6 rounded-full border ${
                               telemetry.colorSensor.color === sw.name
                                 ? 'ring-2 ring-yellow-400 scale-110'
                                 : 'border-slate-300'
@@ -4169,7 +4180,7 @@ export default function App() {
                     </div>
 
                     <div className="bg-white/95 p-1.5 rounded-lg border border-slate-200">
-                      <div className="flex justify-between text-[10px] text-slate-500 mb-1">
+                      <div className="flex justify-between text-xs text-slate-500 mb-1">
                         <span>Distance (E):</span>
                         <span className="font-mono text-cyan-700 font-bold">
                           {Math.round(telemetry.distanceSensor.cm)} cm
@@ -4188,7 +4199,7 @@ export default function App() {
                     </div>
 
                     <div className="bg-white/95 p-1.5 rounded-lg border border-slate-200 flex flex-col justify-between">
-                      <div className="flex justify-between text-[10px] text-slate-500">
+                      <div className="flex justify-between text-xs text-slate-500">
                         <span>Force (F):</span>
                         <span className="font-mono text-pink-700 font-bold">
                           {telemetry.forceSensor.newton} N
@@ -4199,7 +4210,7 @@ export default function App() {
                           onClick={() =>
                             handleUpdateManualSensor('force', { pressed: true, newton: 5 })
                           }
-                          className={`flex-1 py-0.5 rounded text-[10px] font-bold ${
+                          className={`flex-1 h-7 rounded text-xs font-bold ${
                             telemetry.forceSensor.pressed
                               ? 'bg-pink-600 text-white'
                               : 'bg-slate-100 text-slate-700'
@@ -4211,7 +4222,7 @@ export default function App() {
                           onClick={() =>
                             handleUpdateManualSensor('force', { pressed: false, newton: 0 })
                           }
-                          className="px-2 py-0.5 rounded text-[10px] bg-slate-100 text-slate-500"
+                          className="h-7 px-2 rounded text-xs bg-slate-100 text-slate-700"
                         >
                           0N
                         </button>
@@ -4234,7 +4245,7 @@ export default function App() {
                             <span className="bg-blue-500 text-white px-2 py-0.5 rounded">
                               Port {portKey}
                             </span>
-                            <span className="font-mono text-yellow-300 text-[11px]">
+                            <span className="font-mono text-yellow-300 text-xs">
                               {portKey === 'E'
                                 ? `${Math.round(telemetry.distanceSensor.cm)} cm`
                                 : `${Math.round(telemetry.motors[portKey]?.angle || 0)}°`}
@@ -4245,7 +4256,7 @@ export default function App() {
                             onChange={(e) =>
                               setPorts((prev) => ({ ...prev, [portKey]: e.target.value }))
                             }
-                            className="w-full bg-slate-900 text-slate-200 text-[11px] p-1 rounded border border-slate-700"
+                            className="w-full bg-slate-900 text-slate-200 text-xs p-1 rounded border border-slate-700"
                           >
                             {Object.values(SPIKE_DEVICES).map((d) => (
                               <option key={d.id} value={d.id}>
@@ -4260,7 +4271,7 @@ export default function App() {
                     <div className="col-span-4 flex flex-col items-center">
                       <div className="bg-yellow-400 p-3 rounded-2xl border-2 border-yellow-200 shadow-xl">
                         <div className="bg-slate-100 p-2.5 rounded-xl flex flex-col items-center">
-                          <span className="text-[10px] font-black text-slate-700 mb-1">
+                          <span className="text-xs font-black text-slate-700 mb-1">
                             5x5 LIGHT MATRIX
                           </span>
                           <div className="grid grid-cols-5 gap-1.5 bg-slate-900 p-2.5 rounded-xl">
@@ -4278,7 +4289,7 @@ export default function App() {
                               ))
                             )}
                           </div>
-                          <div className="mt-2 text-[10px] font-bold text-slate-600">
+                          <div className="mt-2 text-xs font-bold text-slate-600">
                             Nhấn vào từng ô để bật/tắt đèn LED
                           </div>
                         </div>
@@ -4295,7 +4306,7 @@ export default function App() {
                             <span className="bg-pink-500 text-white px-2 py-0.5 rounded">
                               Port {portKey}
                             </span>
-                            <span className="font-mono text-yellow-300 text-[11px]">
+                            <span className="font-mono text-yellow-300 text-xs">
                               {portKey === 'D'
                                 ? `${telemetry.colorSensor.color} (${telemetry.colorSensor.reflection}%)`
                                 : portKey === 'F'
@@ -4308,7 +4319,7 @@ export default function App() {
                             onChange={(e) =>
                               setPorts((prev) => ({ ...prev, [portKey]: e.target.value }))
                             }
-                            className="w-full bg-slate-900 text-slate-200 text-[11px] p-1 rounded border border-slate-700"
+                            className="w-full bg-slate-900 text-slate-200 text-xs p-1 rounded border border-slate-700"
                           >
                             {Object.values(SPIKE_DEVICES).map((d) => (
                               <option key={d.id} value={d.id}>
@@ -4328,7 +4339,7 @@ export default function App() {
                   <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800 text-xs shrink-0">
                     <span className="font-mono font-bold text-white flex items-center gap-2">
                       <span>main.py (SPIKE™ Prime Python 3 API)</span>
-                      <span className="text-[10px] text-slate-400 font-normal">
+                      <span className="text-xs text-slate-400 font-normal">
                         ({pythonCode.split('\n').length} dòng)
                       </span>
                     </span>
@@ -4350,7 +4361,7 @@ export default function App() {
                   </div>
                   <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto visible-code-scrollbar bg-slate-900/95 rounded-xl p-3 border border-slate-800 flex font-mono text-xs leading-relaxed">
                     {/* Cột số thứ tự dòng */}
-                    <div className="select-none pr-3 mr-3 border-r border-slate-700/60 text-slate-500 text-right text-[11px] font-mono shrink-0">
+                    <div className="select-none pr-3 mr-3 border-r border-slate-700/60 text-slate-500 text-right text-xs font-mono shrink-0">
                       {pythonCode.split('\n').map((_, i) => (
                         <div key={i}>{i + 1}</div>
                       ))}
@@ -4379,12 +4390,12 @@ export default function App() {
                         >
                           <div className="flex items-center justify-between mb-1">
                             <span className="text-xs font-extrabold text-white">{mech.name}</span>
-                            <span className="text-[10px] font-bold bg-pink-600/20 text-pink-300 border border-pink-500/30 px-2 py-0.5 rounded-full">
+                            <span className="text-xs font-bold bg-pink-600/20 text-pink-300 border border-pink-500/30 px-2 py-0.5 rounded-full">
                               {mech.unit}
                             </span>
                           </div>
-                          <p className="text-[11px] text-slate-300 mb-1.5">{mech.description}</p>
-                          <div className="grid grid-cols-2 gap-1.5 text-[10px] text-slate-400 bg-slate-900/90 p-2 rounded-lg mb-1.5">
+                          <p className="text-xs text-slate-300 mb-1.5">{mech.description}</p>
+                          <div className="grid grid-cols-2 gap-1.5 text-xs text-slate-400 bg-slate-900/90 p-2 rounded-lg mb-1.5">
                             <div>
                               <strong className="text-cyan-300">Chấp hành:</strong> {mech.actuators}
                             </div>
@@ -4397,7 +4408,7 @@ export default function App() {
                             </div>
                           </div>
                           <div className="flex flex-wrap items-center gap-1">
-                            <span className="text-[10px] text-slate-400 font-semibold mr-1">
+                            <span className="text-xs text-slate-400 font-semibold mr-1">
                               Nhấn để thêm khối lệnh của cơ cấu này:
                             </span>
                             {mech.keyBlocks.map((bKey) => {
@@ -4407,7 +4418,7 @@ export default function App() {
                                 <button
                                   key={bKey}
                                   onClick={() => handleInsertBlockAt(bKey, blocks.length)}
-                                  className="text-[10px] font-bold text-white px-2 py-0.5 rounded shadow hover:brightness-110"
+                                  className="text-xs font-bold text-white px-2 py-0.5 rounded shadow hover:brightness-110"
                                   style={{ backgroundColor: bDef.color }}
                                 >
                                   + {bDef.nameEn}
@@ -4449,7 +4460,7 @@ export default function App() {
                       {currentBuildStep.parts.map((pt, idx) => (
                         <span
                           key={idx}
-                          className="text-[11px] bg-slate-900 text-yellow-300 px-2.5 py-0.5 rounded-full border border-slate-700"
+                          className="text-xs bg-slate-900 text-yellow-300 px-2.5 py-0.5 rounded-full border border-slate-700"
                         >
                           ✓ {pt}
                         </span>
@@ -4464,7 +4475,7 @@ export default function App() {
             <div className="h-14 pt-2 flex items-center justify-between px-2">
               <div className="text-xs font-semibold text-slate-600 flex items-center gap-1.5 truncate pr-2">
                 <span className="inline-block w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0" />
-                <span className="text-[11px] text-slate-700 font-bold truncate">
+                <span className="text-xs text-slate-700 font-bold truncate">
                   <span>Thiết kế bởi thầy Hoàng Ngọc Cảnh — </span>
                   <span className="hidden 2xl:inline">Giáo viên trường THCS & THPT Đinh Thiện Lý</span>
                   <span className="2xl:hidden">LSTS</span>
@@ -4474,7 +4485,7 @@ export default function App() {
               <div className="flex items-center gap-2">
                 {/* Tốc độ mô phỏng 0.5x, 1x, 2x */}
                 <div className="flex items-center bg-white px-1 py-0.5 rounded-xl border border-slate-300 shadow-sm">
-                  <span className="text-[10px] text-slate-400 font-bold px-1 flex items-center gap-0.5" title="Tốc độ mô phỏng">
+                  <span className="text-xs text-slate-400 font-bold px-1 flex items-center gap-0.5" title="Tốc độ mô phỏng">
                     <Gauge className="w-3.5 h-3.5 text-slate-500" />
                   </span>
                   {[0.5, 1, 2].map((spd) => (
@@ -4482,7 +4493,7 @@ export default function App() {
                       key={spd}
                       onClick={() => changeSimSpeed(spd)}
                       title={`Tốc độ mô phỏng: ${spd}x`}
-                      className={`px-1.5 py-0.5 rounded-lg text-[10px] font-extrabold transition ${
+                      className={`h-7 min-w-[32px] px-1.5 rounded-lg text-xs font-extrabold transition ${
                         simSpeed === spd
                           ? 'bg-amber-400 text-slate-950 shadow-sm'
                           : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
