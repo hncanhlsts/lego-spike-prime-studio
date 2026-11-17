@@ -333,6 +333,39 @@ export default function App() {
   const [arenaLayoutMode, setArenaLayoutMode] = useState('balanced');
   const codeScrollContainerRef = useRef(null);
 
+  // Bố cục màn hình hẹp (< 1024 px: máy tính bảng / điện thoại): chia 2 tab "Lập trình" và "Sa bàn"
+  // vì 3 cột (khối lệnh + vùng lập trình + sa bàn) không đủ chỗ hiển thị cùng lúc.
+  const COMPACT_QUERY = '(max-width: 1023px)';
+  const PHONE_QUERY = '(max-width: 639px)';
+  const [isCompact, setIsCompact] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia(COMPACT_QUERY).matches
+  );
+  const [isPhone, setIsPhone] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia(PHONE_QUERY).matches
+  );
+  const [compactView, setCompactView] = useState('code'); // 'code' | 'arena'
+  const [phoneNoticeHidden, setPhoneNoticeHidden] = useState(() => {
+    try {
+      return sessionStorage.getItem('phone_notice_hidden') === '1';
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    const mqC = window.matchMedia(COMPACT_QUERY);
+    const mqP = window.matchMedia(PHONE_QUERY);
+    const onC = (e) => setIsCompact(e.matches);
+    const onP = (e) => setIsPhone(e.matches);
+    mqC.addEventListener('change', onC);
+    mqP.addEventListener('change', onP);
+    return () => {
+      mqC.removeEventListener('change', onC);
+      mqP.removeEventListener('change', onP);
+    };
+  }, []);
+  const showCodePane = !isCompact || compactView === 'code';
+  const showArenaPane = !isCompact || compactView === 'arena';
+
   // Xử lý nạp kết quả đo từ Thước Đo Khoảng Cách & Đo Góc vào Chồng Lệnh
   const handleApplyMeasurement = useCallback(
     ({ distCm, rotations, turnAngle }) => {
@@ -3275,8 +3308,8 @@ export default function App() {
 
       {/* THANH ĐỀ BÀI, TIÊU CHÍ ĐẠT & GỢI Ý DÀNH CHO HỌC SINH */}
       <div className="bg-amber-50/90 border-b border-amber-200 px-3.5 py-1.5 text-xs text-slate-800 flex flex-col gap-1 shrink-0 z-20">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
+        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
+          <div className="flex items-center gap-2 min-w-0 flex-1 basis-64">
             <span className="px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 font-extrabold text-[10px] shrink-0">
               {currentLesson.level || 'Nhiệm vụ'}
             </span>
@@ -3288,7 +3321,7 @@ export default function App() {
             </span>
           </div>
 
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex flex-wrap items-center gap-1.5 shrink-0">
             {/* Nút nạp lại Code khởi đầu */}
             <button
               onClick={() => {
@@ -3390,10 +3423,98 @@ export default function App() {
         )}
       </div>
 
+      {/* THÔNG BÁO MÀN HÌNH ĐIỆN THOẠI */}
+      {isPhone && !phoneNoticeHidden && (
+        <div className="shrink-0 bg-sky-50 border-b border-sky-200 px-3 py-2 text-xs text-sky-900 flex items-start gap-2 z-20">
+          <span className="text-base leading-none">💻</span>
+          <span className="flex-1">
+            Màn hình điện thoại quá hẹp để kéo thả khối lệnh. Nên dùng <strong>máy tính</strong> hoặc{' '}
+            <strong>máy tính bảng xoay ngang</strong>. Trên điện thoại vẫn xem được đề bài, sa bàn và chạy thử chương trình.
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              setPhoneNoticeHidden(true);
+              try {
+                sessionStorage.setItem('phone_notice_hidden', '1');
+              } catch {
+                // bỏ qua nếu trình duyệt chặn lưu trữ
+              }
+            }}
+            className="shrink-0 px-2 py-1 rounded-lg bg-sky-600 text-white font-bold"
+          >
+            Đã hiểu
+          </button>
+        </div>
+      )}
+
+      {/* THANH CHUYỂN TAB Ở MÀN HÌNH HẸP: LẬP TRÌNH ↔ SA BÀN */}
+      {isCompact && (
+        <div className="shrink-0 bg-white border-b border-slate-200 px-3 py-2 flex items-center gap-2 z-20">
+          <div className="flex flex-1 bg-slate-100 rounded-xl p-1 gap-1" role="tablist">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={compactView === 'code'}
+              onClick={() => setCompactView('code')}
+              className={`flex-1 min-h-[40px] rounded-lg text-sm font-extrabold transition ${
+                compactView === 'code' ? 'bg-white text-slate-900 shadow' : 'text-slate-500'
+              }`}
+            >
+              🧩 Lập trình
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={compactView === 'arena'}
+              onClick={() => setCompactView('arena')}
+              className={`flex-1 min-h-[40px] rounded-lg text-sm font-extrabold transition ${
+                compactView === 'arena' ? 'bg-white text-slate-900 shadow' : 'text-slate-500'
+              }`}
+            >
+              🏁 Sa bàn & Kết quả
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* NÚT CHẠY / DỪNG NỔI Ở MÀN HÌNH HẸP (luôn bấm được khi đang ở tab Lập trình) */}
+      {isCompact && compactView === 'code' && (
+        <div className="fixed right-4 bottom-20 z-40 flex items-center gap-2">
+          {isRunning && (
+            <button
+              type="button"
+              onClick={stopProgram}
+              title="Dừng chương trình (Stop)"
+              className="w-12 h-12 rounded-full bg-rose-600 hover:bg-rose-500 text-white shadow-lg flex items-center justify-center"
+            >
+              <Square className="w-4 h-4 fill-current" />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => {
+              setCompactView('arena');
+              handlePlayClick();
+            }}
+            disabled={isRunning && !isWaitingForStep && !isStepMode}
+            title="Chạy chương trình và xem trên sa bàn"
+            className="h-14 pl-4 pr-5 rounded-full bg-[#FFD500] hover:bg-yellow-400 text-slate-900 font-extrabold text-sm shadow-xl border-2 border-white flex items-center gap-2 disabled:opacity-60"
+          >
+            <Play className="w-5 h-5 fill-current" />
+            Chạy
+          </button>
+        </div>
+      )}
+
       {/* 2. KHÔNG GIAN LÀM VIỆC CHÍNH */}
       <div className="flex-1 flex overflow-hidden relative">
         {/* CỘT 1 (TRÁI NGOÀI CÙNG): THANH ICON TRÒN DỌC + NÚT DẤU + EXTENSIONS Ở ĐÁY */}
-        <aside className="w-[76px] bg-white border-r border-slate-200 flex flex-col items-center py-2 justify-between shrink-0 z-10">
+        <aside
+          className={`bg-white border-r border-slate-200 flex-col items-center py-2 justify-between shrink-0 z-10 ${
+            showCodePane ? 'flex' : 'hidden'
+          } ${isPhone ? 'w-14' : 'w-[76px]'}`}
+        >
           <div className="flex flex-col items-center gap-1.5 overflow-y-auto w-full px-1">
             {activeCategories.map((cat) => (
               <button
@@ -3427,7 +3548,9 @@ export default function App() {
         {/* CỘT 2: NGĂN KÉO KHỐI LỆNH KÉO THẢ */}
         <section
           ref={paletteSidebarRef}
-          className="w-[325px] bg-white border-r border-slate-200 flex flex-col shrink-0 z-10 relative"
+          className={`bg-white border-r border-slate-200 flex-col shrink-0 z-10 relative ${
+            showCodePane ? 'flex' : 'hidden'
+          } ${isPhone ? 'w-[230px]' : isCompact ? 'w-[270px]' : 'w-[325px]'}`}
         >
           {dragState && dragState.source === 'canvas' && dragState.hasMoved && (
             <div
@@ -3536,7 +3659,9 @@ export default function App() {
         <div className="flex-1 spike-canvas-bg relative flex overflow-hidden">
           <div
             ref={canvasAreaRef}
-            className={`flex-1 h-full flex flex-col relative overflow-hidden transition-colors ${
+            className={`flex-1 min-w-0 h-full flex-col relative overflow-hidden transition-colors ${
+              showCodePane ? 'flex' : 'hidden'
+            } ${
               dragState && dragState.hasMoved && dragState.overCanvas
                 ? 'bg-amber-50/40 ring-2 ring-inset ring-amber-400/60'
                 : ''
@@ -3809,8 +3934,12 @@ export default function App() {
 
           {/* KHUNG MÀU ĐỎ BÊN PHẢI (CHỨA SA BÀN 2D/3D, CƠ CẤU SPIKE PRIME, HUB & PYTHON) */}
           <div
-            className={`h-full p-3 flex flex-col justify-between bg-transparent z-10 shrink-0 transition-all duration-300 ${
-              arenaLayoutMode === 'max'
+            className={`h-full flex-col justify-between bg-transparent z-10 shrink-0 transition-all duration-300 ${
+              isPhone ? 'p-1.5' : 'p-3'
+            } ${!showArenaPane ? 'hidden' : 'flex'} ${
+              isCompact
+                ? 'w-full'
+                : arenaLayoutMode === 'max'
                 ? 'w-[82%] min-w-[720px]'
                 : arenaLayoutMode === 'wide'
                 ? 'w-[68%] min-w-[600px]'
@@ -3818,9 +3947,9 @@ export default function App() {
             }`}
           >
             <div className="flex-1 min-h-0 bg-white rounded-2xl border-2 border-rose-500 shadow-[0_8px_30px_rgba(244,63,94,0.12)] flex flex-col overflow-hidden">
-              {/* Thanh Tab cố định chiều cao h-11 shrink-0 không bao giờ xuống dòng */}
-              <div className="h-11 shrink-0 px-2 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800 overflow-x-auto whitespace-nowrap gap-1">
-                <div className="flex items-center gap-1 shrink-0">
+              {/* Thanh Tab: tự xuống dòng khi khung hẹp để không nút nào bị đẩy ra ngoài */}
+              <div className="min-h-11 shrink-0 px-2 py-1.5 bg-slate-900 text-white flex flex-wrap items-center justify-between border-b border-slate-800 gap-1">
+                <div className="flex flex-wrap items-center gap-1 min-w-0">
                   <button
                     onClick={() => setRightRedZoneTab('arena')}
                     className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-extrabold transition shrink-0 ${
@@ -3872,8 +4001,8 @@ export default function App() {
                   </button>
                 </div>
 
-                {/* NÚT CHUYỂN BỐ CỤC GỌN GÀNG: 52% | 68% | 82% */}
-                <div className="flex items-center gap-0.5 bg-slate-950 p-0.5 rounded-lg border border-slate-800 shrink-0">
+                {/* NÚT CHUYỂN BỐ CỤC GỌN GÀNG: 52% | 68% | 82% (ẩn ở bố cục tab màn hình hẹp) */}
+                <div className={`items-center gap-0.5 bg-slate-950 p-0.5 rounded-lg border border-slate-800 shrink-0 ${isCompact ? 'hidden' : 'flex'}`}>
                   <button
                     type="button"
                     onClick={() => setArenaLayoutMode('balanced')}

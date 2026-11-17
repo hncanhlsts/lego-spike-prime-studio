@@ -2114,9 +2114,9 @@ export default function VirtualSimulatorPanel({
 
   return (
     <div className="flex flex-col h-full bg-slate-900/95 border border-slate-800 rounded-2xl overflow-hidden">
-      {/* HEADER KHU VỰC 3: THANH CÔNG CỤ SA BÀN CỐ ĐỊNH 1 DÒNG (H-11), KHÔNG BAO GIỜ BỊ ÉP DỌC */}
-      <div className="h-11 shrink-0 flex items-center justify-between gap-1.5 px-2.5 bg-slate-950 border-b border-slate-800 whitespace-nowrap overflow-x-auto">
-        <div className="flex items-center gap-1.5 shrink-0">
+      {/* HEADER KHU VỰC 3: THANH CÔNG CỤ SA BÀN — TỰ XUỐNG DÒNG KHI KHUNG HẸP (không để nút tràn ra ngoài) */}
+      <div className="min-h-11 shrink-0 flex flex-wrap items-center justify-between gap-1.5 px-2.5 py-1.5 bg-slate-950 border-b border-slate-800">
+        <div className="flex flex-wrap items-center gap-1.5 min-w-0">
           {/* NÚT MỞ THƯ VIỆN 18 SA BÀN (12 SA BÀN 2D + 6 SA BÀN 3D) */}
           <button
             type="button"
