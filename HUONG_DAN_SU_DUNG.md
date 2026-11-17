@@ -212,7 +212,7 @@ Bấm nút **`3D`** trên thanh công cụ để chuyển sang không gian 3D t�
 
 ### 1. Mã PIN Giáo Viên
 * Để bảo vệ tính tự lập và thử thách cho học sinh, chức năng **`Xem Lời Giải Mẫu`** mặc định bị khóa.
-* Giáo viên bấm vào nút `Xem Lời Giải Mẫu`, nhập mã PIN mặc định: **`1234`** để kích hoạt **Chế độ Giáo viên**.
+* Giáo viên bấm vào nút `Xem Lời Giải Mẫu`, nhập mã PIN Giáo viên (do giáo viên phụ trách giữ, không công bố cho học sinh) để kích hoạt **Chế độ Giáo viên**.
 * Sau khi nhập đúng mã PIN, giáo viên có thể mở xem sơ đồ khối chuẩn của bài học và bấm `Nạp Lời Giải Mẫu Vào Vùng Lập Trình` để minh họa cho cả lớp.
 
 ### 2. Quản Lý Nhiệm Vụ (Mission Studio)

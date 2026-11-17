@@ -106,6 +106,23 @@ const EMPTY_ARENA_CONFIG = {
 
 const MISSIONS_STORAGE_KEY = 'spike_prime_curriculum_v4';
 
+// Mã PIN Giáo viên: chỉ lưu MÃ BĂM SHA-256 (không lưu chữ số gốc trong mã nguồn).
+// Đổi PIN: tính SHA-256 của mã mới (dạng hex chữ thường) rồi thay chuỗi dưới đây.
+const TEACHER_PIN_SHA256 = '078bfc92974164acb84c7ac27c09dcf1590dd6e008295ba303173c0229cf1721';
+
+async function verifyTeacherPin(pin) {
+  try {
+    const data = new TextEncoder().encode(String(pin || '').trim());
+    const buf = await crypto.subtle.digest('SHA-256', data);
+    const hex = Array.from(new Uint8Array(buf))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+    return hex === TEACHER_PIN_SHA256;
+  } catch {
+    return false;
+  }
+}
+
 function loadInitialMissions() {
   try {
     const raw = localStorage.getItem(MISSIONS_STORAGE_KEY);
@@ -126,11 +143,24 @@ export default function App() {
   const currentLesson =
     missions.find((l) => l.id === currentLessonId) || missions[0] || CURRICULUM[0];
 
-  // Vai trò: 'student' (Học sinh) hoặc 'teacher' (Giáo viên - mã PIN: 1234)
+  // Vai trò: 'student' (Học sinh) hoặc 'teacher' (Giáo viên - cần mã PIN)
   const [roleMode, setRoleMode] = useState('student');
   const [showPinModal, setShowPinModal] = useState(false);
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState('');
+
+  const submitTeacherPin = async () => {
+    const ok = await verifyTeacherPin(pinInput);
+    if (ok) {
+      setRoleMode('teacher');
+      setShowPinModal(false);
+      setPinInput('');
+      setPinError('');
+      setStatusLog('👨‍🏫 Đã kích hoạt Chế độ Giáo viên (Toàn quyền).');
+    } else {
+      setPinError('Mã PIN không đúng.');
+    }
+  };
 
   // Sổ tay Khối lệnh & Kỹ thuật FLL/WRO
   const [showEncyclopediaModal, setShowEncyclopediaModal] = useState(false);
@@ -2884,7 +2914,7 @@ export default function App() {
         />
       )}
 
-      {/* MODAL MÃ PIN GIÁO VIÊN (PIN MẶC ĐỊNH: 1234) */}
+      {/* MODAL MÃ PIN GIÁO VIÊN (chỉ so khớp mã băm SHA-256, không hiển thị mã) */}
       {showPinModal && (
         <div className="fixed inset-0 bg-slate-900/65 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl p-6 shadow-2xl max-w-sm w-full border border-slate-200 text-center">
@@ -2895,30 +2925,22 @@ export default function App() {
               Xác Nhận Quyền Giáo Viên
             </h3>
             <p className="text-xs text-slate-500 mb-4">
-              Nhập mã PIN Giáo viên để mở khóa toàn bộ Lời giải mẫu và quyền biên tập nhiệm vụ (Mặc định: <strong className="text-slate-800">1234</strong>).
+              Nhập mã PIN Giáo viên để mở khóa toàn bộ Lời giải mẫu và quyền biên tập nhiệm vụ.
             </p>
             <input
               type="password"
-              maxLength={8}
+              maxLength={16}
               autoFocus
+              autoComplete="off"
               value={pinInput}
               onChange={(e) => {
                 setPinInput(e.target.value);
                 setPinError('');
               }}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  if (pinInput === '1234') {
-                    setRoleMode('teacher');
-                    setShowPinModal(false);
-                    setPinInput('');
-                    setStatusLog('👨‍🏫 Đã kích hoạt Chế độ Giáo viên (Toàn quyền).');
-                  } else {
-                    setPinError('Mã PIN không đúng (Gợi ý: 1234)');
-                  }
-                }
+                if (e.key === 'Enter') submitTeacherPin();
               }}
-              placeholder="Nhập mã PIN (1234)..."
+              placeholder="Nhập mã PIN..."
               className="w-full text-center tracking-widest text-lg font-mono px-3 py-2 border rounded-xl mb-2 focus:ring-2 focus:ring-amber-400 outline-none"
             />
             {pinError && <p className="text-xs text-rose-600 font-bold mb-3">{pinError}</p>}
@@ -2934,16 +2956,7 @@ export default function App() {
                 Hủy bỏ
               </button>
               <button
-                onClick={() => {
-                  if (pinInput === '1234') {
-                    setRoleMode('teacher');
-                    setShowPinModal(false);
-                    setPinInput('');
-                    setStatusLog('👨‍🏫 Đã kích hoạt Chế độ Giáo viên (Toàn quyền).');
-                  } else {
-                    setPinError('Mã PIN không đúng (Gợi ý: 1234)');
-                  }
-                }}
+                onClick={submitTeacherPin}
                 className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold"
               >
                 Xác nhận
@@ -3160,7 +3173,7 @@ export default function App() {
                 ? 'bg-purple-600 text-white border-purple-500 shadow-purple-200'
                 : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-300'
             }`}
-            title="Nhấn để đổi vai trò giữa Học sinh và Giáo viên (PIN: 1234)"
+            title="Nhấn để đổi vai trò giữa Học sinh và Giáo viên"
           >
             {roleMode === 'teacher' ? (
               <>
