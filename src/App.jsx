@@ -106,6 +106,11 @@ const EMPTY_ARENA_CONFIG = {
 
 const MISSIONS_STORAGE_KEY = 'spike_prime_curriculum_v4';
 
+// Kiểu chung cho nút trên thanh trên cùng: nền trắng trung tính, chỉ icon mang màu
+// (màu nhấn đậm dành riêng cho hành động chính "Chạy")
+const TOPBAR_BTN =
+  'inline-flex items-center gap-1.5 h-8 px-3 rounded-full bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 text-xs font-bold shadow-sm transition shrink-0';
+
 // Mã PIN Giáo viên: chỉ lưu MÃ BĂM SHA-256 (không lưu chữ số gốc trong mã nguồn).
 // Đổi PIN: tính SHA-256 của mã mới (dạng hex chữ thường) rồi thay chuỗi dưới đây.
 const TEACHER_PIN_SHA256 = '078bfc92974164acb84c7ac27c09dcf1590dd6e008295ba303173c0229cf1721';
@@ -330,7 +335,24 @@ export default function App() {
   const [copiedPython, setCopiedPython] = useState(false);
 
   // Chế độ bố cục khung sa bàn: 'balanced' (52%), 'wide' (68%), 'max' (82%)
-  const [arenaLayoutMode, setArenaLayoutMode] = useState('balanced');
+  // Nhớ lựa chọn của từng máy; màn hình rộng (≥ 1600 px) mặc định ưu tiên sa bàn lớn
+  const [arenaLayoutMode, setArenaLayoutModeState] = useState(() => {
+    try {
+      const saved = localStorage.getItem('arena_layout_mode');
+      if (saved === 'balanced' || saved === 'wide' || saved === 'max') return saved;
+    } catch {
+      // bỏ qua nếu trình duyệt chặn lưu trữ
+    }
+    return typeof window !== 'undefined' && window.innerWidth >= 1600 ? 'wide' : 'balanced';
+  });
+  const setArenaLayoutMode = (mode) => {
+    setArenaLayoutModeState(mode);
+    try {
+      localStorage.setItem('arena_layout_mode', mode);
+    } catch {
+      // bỏ qua
+    }
+  };
   const codeScrollContainerRef = useRef(null);
 
   // Bố cục màn hình hẹp (< 1024 px: máy tính bảng / điện thoại): chia 2 tab "Lập trình" và "Sa bàn"
@@ -3222,6 +3244,85 @@ export default function App() {
             </select>
           </div>
 
+          {/* NÚT MỞ SỔ TAY HƯỚNG DẪN SỬ DỤNG NHÚNG TRỰC TIẾP */}
+          <button
+            onClick={() => setShowUserGuideModal(true)}
+            className={TOPBAR_BTN}
+            title="Xem Sổ tay Hướng Dẫn Sử Dụng nền tảng LEGO SPIKE Prime Studio (Tài liệu HTML nhúng trực tiếp)"
+          >
+            <HelpCircle className="w-3.5 h-3.5 text-emerald-600" />
+            <span className="hidden sm:inline">Hướng Dẫn</span>
+            <span className="sm:hidden">HDSD</span>
+          </button>
+
+          {/* NÚT MỞ SỔ TAY KHỐI LỆNH & 6 KỸ THUẬT LẬP TRÌNH FLL/WRO */}
+          <button
+            onClick={() => setShowEncyclopediaModal(true)}
+            className={TOPBAR_BTN}
+            title="Tra cứu 7 kỹ thuật điều khiển FLL/WRO và Bách khoa toàn thư khối lệnh SPIKE Prime"
+          >
+            <Compass className="w-3.5 h-3.5 text-indigo-600" />
+            <span className="hidden md:inline">Sổ Tay (FLL/WRO)</span>
+            <span className="md:hidden">Sổ Tay</span>
+          </button>
+
+          {/* NÚT ĐỒNG HỒ TRẬN 2:30 & TÍNH ĐIỂM ROBOT GAME MÙA BIOGLOW */}
+          <button
+            onClick={() => setShowScorerModal(true)}
+            className={TOPBAR_BTN}
+            title="Đồng hồ trận đấu 2:30 và bảng tính điểm Robot Game FLL 2026–27 BIOGLOW"
+          >
+            <Timer className="w-3.5 h-3.5 text-emerald-700" />
+            <span className="hidden md:inline">Tính Điểm FLL</span>
+            <span className="md:hidden">Điểm</span>
+          </button>
+        </div>
+
+        {/* NHÓM CÔNG CỤ (BÊN PHẢI) */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {/* Công cụ biên soạn bài — chỉ hiện ở Chế độ Giáo viên */}
+          {roleMode === 'teacher' && (
+            <>
+              <button
+                onClick={() => setShowMissionStudioModal(true)}
+                className={TOPBAR_BTN}
+                title="Mở trình Quản lý & Thiết kế Nhiệm vụ / Sa bàn mới"
+              >
+                <Settings2 className="w-3.5 h-3.5 text-purple-600" />
+                <span>Nhiệm Vụ ({missions.length})</span>
+              </button>
+
+              <button
+                onClick={handleCreateNewMission}
+                className={TOPBAR_BTN}
+                title="Tạo nhanh 1 nhiệm vụ và sa bàn trống mới"
+              >
+                <Plus className="w-3.5 h-3.5 text-purple-600" />
+                <span>Bài Mới</span>
+              </button>
+              <span className="w-px h-6 bg-slate-300 mx-0.5" />
+            </>
+          )}
+
+          <button
+            onClick={handleSaveCurrentStateToMission}
+            className={TOPBAR_BTN}
+            title="Lưu Sa bàn tự vẽ và chồng lệnh hiện tại vào nhiệm vụ đang mở"
+          >
+            <Save className="w-3.5 h-3.5 text-amber-600" />
+            <span className="hidden sm:inline">Lưu Sa Bàn & Code</span>
+            <span className="sm:hidden">Lưu</span>
+          </button>
+
+          <button
+            onClick={() => setShowExtensionsModal(true)}
+            className={TOPBAR_BTN}
+            title="Bật/tắt các nhóm khối lệnh mở rộng"
+          >
+            <Plus className="w-3.5 h-3.5 text-blue-600" />
+            <span>Extensions ({enabledExtensions.length})</span>
+          </button>
+
           {/* NÚT CHUYỂN ĐỔI CHẾ ĐỘ: HỌC SINH ↔ GIÁO VIÊN */}
           <button
             onClick={() => {
@@ -3232,11 +3333,11 @@ export default function App() {
                 setStatusLog('🎒 Đã chuyển về Chế độ Học sinh.');
               }
             }}
-            className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-extrabold border shadow-sm transition shrink-0 ${
+            className={
               roleMode === 'teacher'
-                ? 'bg-purple-600 text-white border-purple-500 shadow-purple-200'
-                : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-300'
-            }`}
+                ? 'inline-flex items-center gap-1.5 h-8 px-3 rounded-full bg-purple-600 hover:bg-purple-500 text-white border border-purple-600 text-xs font-extrabold shadow-sm transition shrink-0'
+                : TOPBAR_BTN
+            }
             title="Nhấn để đổi vai trò giữa Học sinh và Giáo viên"
           >
             {roleMode === 'teacher' ? (
@@ -3250,89 +3351,6 @@ export default function App() {
                 <span>🎒 Học sinh</span>
               </>
             )}
-          </button>
-
-          {/* NÚT MỞ SỔ TAY HƯỚNG DẪN SỬ DỤNG NHÚNG TRỰC TIẾP */}
-          <button
-            onClick={() => setShowUserGuideModal(true)}
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold shadow-sm transition shrink-0"
-            title="Xem Sổ tay Hướng Dẫn Sử Dụng nền tảng LEGO SPIKE Prime Studio (Tài liệu HTML nhúng trực tiếp)"
-          >
-            <HelpCircle className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Hướng Dẫn</span>
-            <span className="sm:hidden">HDSD</span>
-          </button>
-
-          {/* NÚT MỞ SỔ TAY KHỐI LỆNH & 6 KỸ THUẬT LẬP TRÌNH FLL/WRO */}
-          <button
-            onClick={() => setShowEncyclopediaModal(true)}
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-extrabold shadow-sm transition shrink-0"
-            title="Tra cứu 6 kỹ thuật điều khiển FLL/WRO và Bách khoa toàn thư khối lệnh SPIKE Prime"
-          >
-            <Compass className="w-3.5 h-3.5" />
-            <span className="hidden md:inline">Sổ Tay (FLL/WRO)</span>
-            <span className="md:hidden">Sổ Tay</span>
-          </button>
-
-          {/* NÚT ĐỒNG HỒ TRẬN 2:30 & TÍNH ĐIỂM ROBOT GAME MÙA BIOGLOW */}
-          <button
-            onClick={() => setShowScorerModal(true)}
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-extrabold shadow-sm transition shrink-0"
-            title="Đồng hồ trận đấu 2:30 và bảng tính điểm Robot Game FLL 2026–27 BIOGLOW"
-          >
-            <Timer className="w-3.5 h-3.5" />
-            <span className="hidden md:inline">Tính Điểm FLL</span>
-            <span className="md:hidden">Điểm</span>
-          </button>
-
-          <button
-            onClick={() => setShowMissionStudioModal(true)}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-extrabold shadow-sm transition shrink-0"
-            title="Mở trình Quản lý & Thiết kế Nhiệm vụ / Sa bàn mới"
-          >
-            <Settings2 className="w-3.5 h-3.5" />
-            <span>Nhiệm Vụ ({missions.length})</span>
-          </button>
-
-          <button
-            onClick={handleCreateNewMission}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold shadow-sm transition shrink-0"
-            title="Tạo nhanh 1 nhiệm vụ và sa bàn trống mới"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>+ Bài Mới</span>
-          </button>
-        </div>
-
-        <div className="flex items-center gap-1.5 shrink-0">
-          <button
-            onClick={handleSaveCurrentStateToMission}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-white hover:bg-amber-50 text-slate-800 border border-amber-400 text-xs font-bold shadow-sm transition shrink-0"
-            title="Lưu Sa bàn tự vẽ và chồng lệnh hiện tại vào nhiệm vụ đang mở"
-          >
-            <Save className="w-3.5 h-3.5 text-amber-600" />
-            <span className="hidden sm:inline">Lưu Sa Bàn & Code</span>
-            <span className="sm:hidden">Lưu</span>
-          </button>
-
-          <button
-            onClick={() => setShowExtensionsModal(true)}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-sm transition shrink-0"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Extensions ({enabledExtensions.length})</span>
-          </button>
-
-          <button
-            onClick={() => setRightRedZoneTab('builder')}
-            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-bold border shadow-sm transition shrink-0 ${
-              rightRedZoneTab === 'builder'
-                ? 'bg-pink-600 text-white border-pink-600'
-                : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-300'
-            }`}
-          >
-            <Cog className="w-3.5 h-3.5" />
-            <span>5 Cơ Cấu</span>
           </button>
         </div>
       </header>
@@ -3530,7 +3548,7 @@ export default function App() {
             }}
             disabled={isRunning && !isWaitingForStep && !isStepMode}
             title="Chạy chương trình và xem trên sa bàn"
-            className="h-14 pl-4 pr-5 rounded-full bg-[#FFD500] hover:bg-yellow-400 text-slate-900 font-extrabold text-sm shadow-xl border-2 border-white flex items-center gap-2 disabled:opacity-60"
+            className="h-14 pl-4 pr-5 rounded-full bg-emerald-700 hover:bg-emerald-600 text-white font-extrabold text-sm shadow-xl border-2 border-white flex items-center gap-2 disabled:opacity-60"
           >
             <Play className="w-5 h-5 fill-current" />
             Chạy
@@ -3979,14 +3997,14 @@ export default function App() {
           >
             <div className="flex-1 min-h-0 bg-white rounded-2xl border-2 border-rose-500 shadow-[0_8px_30px_rgba(244,63,94,0.12)] flex flex-col overflow-hidden">
               {/* Thanh Tab: tự xuống dòng khi khung hẹp để không nút nào bị đẩy ra ngoài */}
-              <div className="min-h-11 shrink-0 px-2 py-1.5 bg-slate-900 text-white flex flex-wrap items-center justify-between border-b border-slate-800 gap-1">
+              <div className="min-h-11 shrink-0 px-2 py-1.5 bg-white text-slate-800 flex flex-wrap items-center justify-between border-b border-slate-200 gap-1.5">
                 <div className="flex flex-wrap items-center gap-1 min-w-0">
                   <button
                     onClick={() => setRightRedZoneTab('arena')}
                     className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-extrabold transition shrink-0 ${
                       rightRedZoneTab === 'arena'
-                        ? 'bg-rose-500 text-white shadow'
-                        : 'text-slate-300 hover:bg-slate-800'
+                        ? 'bg-slate-900 text-white shadow'
+                        : 'text-slate-700 hover:bg-slate-100'
                     }`}
                   >
                     <span>🏁 Sa Bàn ({simMode})</span>
@@ -3996,8 +4014,8 @@ export default function App() {
                     onClick={() => setRightRedZoneTab('hub')}
                     className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold transition shrink-0 ${
                       rightRedZoneTab === 'hub'
-                        ? 'bg-yellow-400 text-slate-950 shadow'
-                        : 'text-slate-300 hover:bg-slate-800'
+                        ? 'bg-slate-900 text-white shadow'
+                        : 'text-slate-700 hover:bg-slate-100'
                     }`}
                     title="Bảng điều khiển Bộ não Hub 5x5 & Cảm biến"
                   >
@@ -4009,8 +4027,8 @@ export default function App() {
                     onClick={() => setRightRedZoneTab('python')}
                     className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold transition shrink-0 ${
                       rightRedZoneTab === 'python'
-                        ? 'bg-cyan-400 text-slate-950 shadow'
-                        : 'text-slate-300 hover:bg-slate-800'
+                        ? 'bg-slate-900 text-white shadow'
+                        : 'text-slate-700 hover:bg-slate-100'
                     }`}
                     title="Mã nguồn Python 3 đồng bộ"
                   >
@@ -4022,8 +4040,8 @@ export default function App() {
                     onClick={() => setRightRedZoneTab('builder')}
                     className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold transition shrink-0 ${
                       rightRedZoneTab === 'builder'
-                        ? 'bg-pink-500 text-white shadow'
-                        : 'text-slate-300 hover:bg-slate-800'
+                        ? 'bg-slate-900 text-white shadow'
+                        : 'text-slate-700 hover:bg-slate-100'
                     }`}
                     title="5 Cơ cấu robot SPIKE Prime chính thức"
                   >
@@ -4032,43 +4050,56 @@ export default function App() {
                   </button>
                 </div>
 
-                {/* NÚT CHUYỂN BỐ CỤC GỌN GÀNG: 52% | 68% | 82% (ẩn ở bố cục tab màn hình hẹp) */}
-                <div className={`items-center gap-0.5 bg-slate-950 p-0.5 rounded-lg border border-slate-800 shrink-0 ${isCompact ? 'hidden' : 'flex'}`}>
-                  <button
-                    type="button"
-                    onClick={() => setArenaLayoutMode('balanced')}
-                    className={`px-2 py-0.5 rounded text-[10px] font-bold transition ${
-                      arenaLayoutMode === 'balanced'
-                        ? 'bg-rose-500 text-white shadow'
-                        : 'text-slate-400 hover:text-white'
-                    }`}
-                    title="Chế độ Cân Bằng (52% Sa Bàn / 48% Lập Trình)"
+                <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                  {/* CHỌN ĐỘ RỘNG KHUNG SA BÀN (ẩn ở bố cục tab màn hình hẹp) */}
+                  <label
+                    className={`items-center gap-1 text-[11px] font-bold text-slate-600 ${isCompact ? 'hidden' : 'flex'}`}
+                    title="Chọn độ rộng của khung sa bàn so với vùng lập trình"
                   >
-                    52%
+                    <span>Khung:</span>
+                    <select
+                      value={arenaLayoutMode}
+                      onChange={(e) => setArenaLayoutMode(e.target.value)}
+                      className="h-8 px-2 rounded-lg border border-slate-300 bg-white text-xs font-bold text-slate-800 cursor-pointer focus:outline-none focus:ring-2 focus:ring-slate-400"
+                    >
+                      <option value="balanced">Cân bằng</option>
+                      <option value="wide">Sa bàn lớn</option>
+                      <option value="max">Toàn cảnh</option>
+                    </select>
+                  </label>
+
+                  {/* NÚT CHẠY / DỪNG — HÀNH ĐỘNG CHÍNH, ĐẶT NGAY ĐẦU KHUNG SA BÀN */}
+                  <button
+                    onClick={stopProgram}
+                    title="Dừng chương trình (Stop)"
+                    disabled={!isRunning}
+                    className={`h-9 px-3 rounded-full flex items-center gap-1.5 text-xs font-extrabold transition border ${
+                      isRunning
+                        ? 'bg-rose-600 hover:bg-rose-500 text-white border-rose-600'
+                        : 'bg-white text-slate-400 border-slate-300 cursor-not-allowed'
+                    }`}
+                  >
+                    <Square className="w-3.5 h-3.5 fill-current" />
+                    <span>Dừng</span>
                   </button>
                   <button
-                    type="button"
-                    onClick={() => setArenaLayoutMode('wide')}
-                    className={`px-2 py-0.5 rounded text-[10px] font-bold transition ${
-                      arenaLayoutMode === 'wide'
-                        ? 'bg-amber-400 text-slate-950 shadow'
-                        : 'text-slate-400 hover:text-white'
+                    onClick={handlePlayClick}
+                    disabled={isRunning && !isWaitingForStep && !isStepMode}
+                    title={
+                      isRunning && (isWaitingForStep || isStepMode)
+                        ? 'Tiếp tục chạy liên tục (Resume Normal Run)'
+                        : isRunning
+                        ? 'Đang chạy mô phỏng...'
+                        : 'Chạy chương trình (Run Program)'
+                    }
+                    className={`h-9 pl-3 pr-4 rounded-full flex items-center gap-1.5 text-sm font-extrabold shadow-md transition ${
+                      isRunning && !isWaitingForStep && !isStepMode
+                        ? 'bg-emerald-200 text-emerald-900 cursor-not-allowed'
+                        : 'bg-emerald-700 hover:bg-emerald-600 text-white'
                     }`}
-                    title="Chế độ Mở Rộng (68% Sa Bàn — Kéo dài sa bàn)"
                   >
-                    ⛶ 68%
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setArenaLayoutMode('max')}
-                    className={`px-2 py-0.5 rounded text-[10px] font-bold transition ${
-                      arenaLayoutMode === 'max'
-                        ? 'bg-emerald-400 text-slate-950 shadow'
-                        : 'text-slate-400 hover:text-white'
-                    }`}
-                    title="Chế độ Toàn Cảnh (82% Sa Bàn — Khung sa bàn cực đại)"
-                  >
-                    🖥 82%
+                    <Play className="w-4 h-4 fill-current" />
+                    <span>{isRunning && !isWaitingForStep && !isStepMode ? 'Đang chạy…' : 'Chạy'}</span>
                   </button>
                 </div>
               </div>
@@ -4107,11 +4138,11 @@ export default function App() {
                     />
                   </div>
 
-                  <div className="shrink-0 bg-slate-900 border-t border-slate-800 px-3 py-2 grid grid-cols-3 gap-2 text-xs">
-                    <div className="bg-slate-950/90 p-1.5 rounded-lg border border-slate-800">
-                      <div className="flex justify-between text-[10px] text-slate-400 mb-1">
+                  <div className="shrink-0 bg-white border-t border-slate-200 px-3 py-2 grid grid-cols-3 gap-2 text-xs">
+                    <div className="bg-white/95 p-1.5 rounded-lg border border-slate-200">
+                      <div className="flex justify-between text-[10px] text-slate-500 mb-1">
                         <span>Color (D):</span>
-                        <span className="font-mono text-cyan-300 font-bold">
+                        <span className="font-mono text-cyan-700 font-bold">
                           {telemetry.colorSensor.color} ({telemetry.colorSensor.reflection}%)
                         </span>
                       </div>
@@ -4128,7 +4159,7 @@ export default function App() {
                             className={`w-4 h-4 rounded-full border ${
                               telemetry.colorSensor.color === sw.name
                                 ? 'ring-2 ring-yellow-400 scale-110'
-                                : 'border-slate-600'
+                                : 'border-slate-300'
                             }`}
                             style={{ backgroundColor: sw.hex }}
                             title={sw.label}
@@ -4137,10 +4168,10 @@ export default function App() {
                       </div>
                     </div>
 
-                    <div className="bg-slate-950/90 p-1.5 rounded-lg border border-slate-800">
-                      <div className="flex justify-between text-[10px] text-slate-400 mb-1">
+                    <div className="bg-white/95 p-1.5 rounded-lg border border-slate-200">
+                      <div className="flex justify-between text-[10px] text-slate-500 mb-1">
                         <span>Distance (E):</span>
-                        <span className="font-mono text-cyan-300 font-bold">
+                        <span className="font-mono text-cyan-700 font-bold">
                           {Math.round(telemetry.distanceSensor.cm)} cm
                         </span>
                       </div>
@@ -4152,14 +4183,14 @@ export default function App() {
                         onChange={(e) =>
                           handleUpdateManualSensor('distance', { cm: Number(e.target.value) })
                         }
-                        className="w-full accent-cyan-400 cursor-pointer h-1.5 bg-slate-800 rounded-lg"
+                        className="w-full accent-cyan-400 cursor-pointer h-1.5 bg-slate-100 rounded-lg"
                       />
                     </div>
 
-                    <div className="bg-slate-950/90 p-1.5 rounded-lg border border-slate-800 flex flex-col justify-between">
-                      <div className="flex justify-between text-[10px] text-slate-400">
+                    <div className="bg-white/95 p-1.5 rounded-lg border border-slate-200 flex flex-col justify-between">
+                      <div className="flex justify-between text-[10px] text-slate-500">
                         <span>Force (F):</span>
-                        <span className="font-mono text-pink-400 font-bold">
+                        <span className="font-mono text-pink-700 font-bold">
                           {telemetry.forceSensor.newton} N
                         </span>
                       </div>
@@ -4171,7 +4202,7 @@ export default function App() {
                           className={`flex-1 py-0.5 rounded text-[10px] font-bold ${
                             telemetry.forceSensor.pressed
                               ? 'bg-pink-600 text-white'
-                              : 'bg-slate-800 text-slate-300'
+                              : 'bg-slate-100 text-slate-700'
                           }`}
                         >
                           Pressed (5N)
@@ -4180,7 +4211,7 @@ export default function App() {
                           onClick={() =>
                             handleUpdateManualSensor('force', { pressed: false, newton: 0 })
                           }
-                          className="px-2 py-0.5 rounded text-[10px] bg-slate-800 text-slate-400"
+                          className="px-2 py-0.5 rounded text-[10px] bg-slate-100 text-slate-500"
                         >
                           0N
                         </button>
@@ -4191,7 +4222,7 @@ export default function App() {
               )}
 
               {rightRedZoneTab === 'hub' && (
-                <div className="flex-1 bg-slate-900 text-white p-4 overflow-y-auto space-y-4">
+                <div className="flex-1 bg-white text-white p-4 overflow-y-auto space-y-4">
                   <div className="grid grid-cols-12 gap-3 items-center">
                     <div className="col-span-4 space-y-2">
                       {['A', 'C', 'E'].map((portKey) => (
@@ -4494,39 +4525,6 @@ export default function App() {
                   <span className="font-mono tracking-tighter">⠇⠇</span>
                   <span>Slot 1 ▾</span>
                 </div>
-
-                <button
-                  onClick={stopProgram}
-                  title="Dừng chương trình (Stop)"
-                  className={`w-11 h-11 rounded-full flex items-center justify-center shadow-md transition ${
-                    isRunning
-                      ? 'bg-rose-600 text-white hover:bg-rose-500 scale-105'
-                      : 'bg-slate-300 hover:bg-slate-400 text-white'
-                  }`}
-                >
-                  <Square className="w-4 h-4 fill-current" />
-                </button>
-
-                <button
-                  onClick={handlePlayClick}
-                  disabled={isRunning && !isWaitingForStep && !isStepMode}
-                  title={
-                    isRunning && (isWaitingForStep || isStepMode)
-                      ? 'Tiếp tục chạy liên tục (Resume Normal Run)'
-                      : isRunning
-                      ? 'Đang chạy mô phỏng...'
-                      : 'Chạy chương trình (Run Program)'
-                  }
-                  className={`w-12 h-12 rounded-full flex items-center justify-center shadow-lg transition ${
-                    isRunning && !isWaitingForStep && !isStepMode
-                      ? 'bg-amber-400 text-slate-950 animate-pulse cursor-not-allowed opacity-90'
-                      : isRunning && (isWaitingForStep || isStepMode)
-                      ? 'bg-emerald-500 hover:bg-emerald-400 text-white animate-bounce ring-4 ring-emerald-200'
-                      : 'bg-[#FFD500] hover:bg-yellow-400 text-slate-900 hover:scale-105 border-2 border-white'
-                  }`}
-                >
-                  <Play className="w-5 h-5 fill-current ml-0.5" />
-                </button>
               </div>
             </div>
           </div>
