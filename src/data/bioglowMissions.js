@@ -408,6 +408,14 @@ export function planBlocks(prefix, start, actions) {
   const out = [];
   const turnTo = (h) => {
     const d = Math.round(norm(h - angle));
+    if (Math.abs(d) === 180) {
+      // Quay đầu = 2 lần rẽ 90° (khối steering chỉ có tối đa ±100)
+      for (let k = 0; k < 2; k++) {
+        out.push({ id: id(), type: 'move_with_steering', params: { steering: 90, steeringText: 'right: 90', value: 1, unit: 'rotations' } });
+      }
+      angle = angle + 180;
+      return;
+    }
     if (d !== 0) {
       out.push({
         id: id(),
@@ -433,13 +441,27 @@ export function planBlocks(prefix, start, actions) {
     turnTo(h);
     fwd(Math.hypot(tx - x, ty - y));
   };
+  // Đi theo đường VUÔNG GÓC (chỉ dọc trục ngang/dọc, rẽ 90°) — order 'xy' (ngang trước) hoặc 'yx' (dọc trước)
+  const manhattanTo = (tx, ty, order = 'xy') => {
+    for (const axis of order.split('')) {
+      if (axis === 'x' && Math.abs(tx - x) > 0.5) {
+        turnTo(tx > x ? EAST : WEST);
+        fwd(Math.abs(tx - x));
+      } else if (axis === 'y' && Math.abs(ty - y) > 0.5) {
+        turnTo(ty > y ? SOUTH : NORTH);
+        fwd(Math.abs(ty - y));
+      }
+    }
+  };
+  const travel = (tx, ty, route) => (route ? manhattanTo(tx, ty, route) : goTo(tx, ty));
+
   for (const a of actions) {
     if (a.speed !== undefined) {
       out.push({ id: id(), type: 'set_movement_speed', params: { speed: a.speed } });
     } else if (a.arm !== undefined) {
       out.push({ id: id(), type: 'motor_go_to_position', params: { port: 'C', direction: 'shortest path', position: a.arm } });
     } else if (a.to) {
-      goTo(a.to[0], a.to[1]);
+      travel(a.to[0], a.to[1], a.route);
     } else if (a.face !== undefined) {
       turnTo(a.face);
     } else if (a.back) {
@@ -452,7 +474,7 @@ export function planBlocks(prefix, start, actions) {
       const cx = fx - Math.cos(rad) * FRONT_PX;
       const cy = fy - Math.sin(rad) * FRONT_PX;
       const run = a.run ?? 30;
-      goTo(cx - Math.cos(rad) * run, cy - Math.sin(rad) * run);
+      travel(cx - Math.cos(rad) * run, cy - Math.sin(rad) * run, a.route);
       turnTo(h);
       fwd(run);
     }
@@ -471,19 +493,19 @@ export const BIOGLOW_LESSON_SPECS = [
     no: 'B01', missions: ['M01'], start: 'left', grid: 'F1', level: 'Trung bình',
     title: 'M01 Drone Survey — Phóng drone & lật bản đồ LiDAR',
     hints: ['Đi gần sát mép dưới thảm, hướng Đông, tới vùng M01 (cột F, hàng 1).', 'Nâng tay cần lên 80° để phóng drone.', 'Bonus: quay lên hướng Bắc tại ô vuông nghiêng cạnh vạch đen, hạ tay cần xuống 10°.'],
-    path: [{ approach: [250, 240], heading: EAST, run: 30 }, { arm: 80 }, { approach: [272, 212], heading: NORTH, run: 0 }, { arm: 10 }, { to: LEFT_HOME }]
+    path: [{ approach: [250, 240], heading: EAST, run: 30, route: 'xy' }, { arm: 80 }, { approach: [272, 212], heading: NORTH, run: 0, route: 'xy' }, { arm: 10 }, { to: LEFT_HOME, route: 'yx' }]
   },
   {
     no: 'B02', missions: ['M02'], start: 'left', grid: 'D3', level: 'Dễ',
     title: 'M02 Exploding Seeds — Kích nổ quả hạt từ phía Nam',
     hints: ['M02 ở cột D, hàng 3. Tới điểm chờ ngay phía dưới rồi quay hướng Bắc (−90°).', 'Tiến thẳng khoảng 13 cm, hạ tay cần 10° rồi nâng lại 80°.', 'Lùi ra trước khi quay về Home.'],
-    path: [{ approach: [176, 140], heading: NORTH, run: 30 }, { arm: 10 }, { arm: 80 }, { back: 15 }, { to: LEFT_HOME }]
+    path: [{ approach: [176, 140], heading: NORTH, run: 30, route: 'xy' }, { arm: 10 }, { arm: 80 }, { back: 15 }, { to: LEFT_HOME, route: 'xy' }]
   },
   {
     no: 'B03', missions: ['M03'], start: 'left', grid: 'A4', level: 'Dễ',
     title: 'M03 Flip the Rock — Lật đá, hạ cờ, trả đá về chỗ cũ',
     hints: ['M03 sát tường trái (cột A, hàng 4): tiếp cận theo hướng Tây (180°).', 'Hạ tay cần 10° (lật đá), rồi nâng 80° (trả đá) để lấy bonus.', 'Lùi 13 cm rồi về Home.'],
-    path: [{ approach: [58, 113], heading: WEST, run: 30 }, { arm: 10 }, { arm: 80 }, { back: 13 }, { to: LEFT_HOME }]
+    path: [{ approach: [58, 113], heading: WEST, run: 30, route: 'xy' }, { arm: 10 }, { arm: 80 }, { back: 13 }, { to: LEFT_HOME, route: 'yx' }]
   },
   {
     no: 'B04', missions: ['M04'], start: 'left', grid: 'A6', level: 'Khó',
@@ -495,16 +517,16 @@ export const BIOGLOW_LESSON_SPECS = [
       'Lùi ~5 cm, dịch sang phải ~10 cm, lặp lại với vòng phải rồi về Home.'
     ],
     path: [
-      { approach: [45, 50], heading: NORTH, run: 30 }, { arm: 10 }, { arm: 80 }, { back: 6 },
-      { approach: [68, 50], heading: NORTH, run: 20 }, { arm: 10 }, { arm: 80 }, { back: 12 },
-      { to: LEFT_HOME }
+      { approach: [45, 50], heading: NORTH, run: 30, route: 'yx' }, { arm: 10 }, { arm: 80 }, { back: 6 },
+      { approach: [68, 50], heading: NORTH, run: 14, route: 'xy' }, { arm: 10 }, { arm: 80 }, { back: 12 },
+      { to: LEFT_HOME, route: 'xy' }
     ]
   },
   {
     no: 'B05', missions: ['M05'], start: 'left', grid: 'C6', level: 'Dễ',
     title: 'M05 Reaching Roots — Đẩy rễ cây đúng hướng Bắc',
     hints: ['M05 ở mép trên, cột C. Đẩy thẳng hướng Bắc mới kéo dài hoàn toàn.', 'Dùng gyro move straight để không lệch hướng khi đẩy.', 'Lùi ra rồi về Home.'],
-    path: [{ approach: [123, 18], heading: NORTH, run: 40 }, { back: 17 }, { to: LEFT_HOME }]
+    path: [{ approach: [123, 18], heading: NORTH, run: 40, route: 'xy' }, { back: 17 }, { to: LEFT_HOME, route: 'xy' }]
   },
   {
     no: 'B06', missions: ['M06'], start: 'right', grid: 'H6', level: 'Trung bình',
@@ -515,74 +537,74 @@ export const BIOGLOW_LESSON_SPECS = [
       'Quay hướng Bắc, đẩy thẳng ~17 cm, rồi đặt lại tốc độ 50% để về Home cho nhanh.'
     ],
     path: [
-      { speed: 50 }, { to: [377, 84] }, { face: NORTH }, { speed: 30 },
+      { speed: 50 }, { to: [377, 84], route: 'xy' }, { face: NORTH }, { speed: 30 },
       { approach: [377, 26], heading: NORTH, run: 40 },
-      { speed: 50 }, { back: 17 }, { to: RIGHT_HOME }
+      { speed: 50 }, { back: 17 }, { to: RIGHT_HOME, route: 'xy' }
     ]
   },
   {
     no: 'B07', missions: ['M07'], start: 'right', grid: 'I6', level: 'Dễ',
     title: 'M07 Humongous Fungus — Đẩy sợi nấm',
     hints: ['Từ Home phải, tới điểm chờ dưới M07 (cột I, hàng 6).', 'Quay hướng Bắc, đẩy thẳng ~17 cm.', 'Bonus kết nối với đội đối diện chỉ có khi thi 2 bàn ghép.'],
-    path: [{ approach: [399, 26], heading: NORTH, run: 40 }, { back: 17 }, { to: RIGHT_HOME }]
+    path: [{ approach: [399, 26], heading: NORTH, run: 40, route: 'xy' }, { back: 17 }, { to: RIGHT_HOME, route: 'xy' }]
   },
   {
     no: 'B08', missions: ['M08'], start: 'left', grid: 'C6', level: 'Trung bình',
     title: 'M08 Tangled — Gỡ dây leo khỏi cây',
     hints: ['M08 ở mép trên, cột C–D (bên trái M09).', 'Tiếp cận hướng Bắc, hạ tay cần 10° để kéo dây leo xuống thảm.', 'Nâng tay cần lại trước khi lùi để không kéo đổ cây.'],
-    path: [{ approach: [148, 28], heading: NORTH, run: 40 }, { arm: 10 }, { arm: 80 }, { back: 17 }, { to: LEFT_HOME }]
+    path: [{ approach: [148, 28], heading: NORTH, run: 40, route: 'xy' }, { arm: 10 }, { arm: 80 }, { back: 17 }, { to: LEFT_HOME, route: 'xy' }]
   },
   {
     no: 'B09', missions: ['M09'], start: 'left', grid: 'D6', level: 'Khó',
     title: 'M09 Research Platform — Nâng bệ, thả bẫy camera, lấy hạt',
     hints: ['M09 ngay cạnh tổ nhện M10 — đừng để thân robot lệch sang phải!', 'Hướng Bắc: nâng 80° (bệ) → hạ 10° (camera) → nâng 80°.', 'Giữ đúng hướng Bắc khi thao tác thì hạt mới rơi khỏi cây.'],
-    path: [{ approach: [171, 28], heading: NORTH, run: 40 }, { arm: 80 }, { arm: 10 }, { arm: 80 }, { back: 17 }, { to: LEFT_HOME }]
+    path: [{ approach: [171, 28], heading: NORTH, run: 40, route: 'yx' }, { arm: 80 }, { arm: 10 }, { arm: 80 }, { back: 17 }, { to: LEFT_HOME, route: 'xy' }]
   },
   {
     no: 'B10', missions: ['M10', 'M11'], start: 'left', grid: 'D6 · F4', level: 'Trung bình',
     title: 'M10 Fragile Microhabitats — Băng qua sân tới M11, không chạm tổ ốc sên',
     hints: ['Tổ ốc sên ở cột F, hàng 4, ngay cạnh dock giữa sân. Vẽ đường đi bằng Thước Đo trước!', 'Đi chéo thấp (dưới tổ ốc sên) rồi tiếp cận M11 theo hướng Đông.', 'Hạ tay cần 10° tại M11, về lại Home trái theo đúng đường cũ.'],
-    path: [{ approach: [343, 128], heading: EAST, run: 30 }, { arm: 10 }, { arm: 80 }, { back: 13 }, { to: LEFT_HOME }]
+    path: [{ approach: [343, 128], heading: EAST, run: 30, route: 'xy' }, { arm: 10 }, { arm: 80 }, { back: 13 }, { to: LEFT_HOME, route: 'yx' }]
   },
   {
     no: 'B11', missions: ['M11'], start: 'right', grid: 'H3', level: 'Dễ',
     title: 'M11 Window to the Past — Đóng nắp che rễ',
     hints: ['Từ Home phải, M11 ở cột H, hàng 3 (giữa sân bên phải).', 'Tiếp cận theo hướng Tây (180°), hạ tay cần 10°.', 'Nâng tay cần, lùi ra rồi về Home phải.'],
-    path: [{ approach: [365, 128], heading: WEST, run: 30 }, { arm: 10 }, { arm: 80 }, { back: 13 }, { to: RIGHT_HOME }]
+    path: [{ approach: [365, 128], heading: WEST, run: 30, route: 'xy' }, { arm: 10 }, { arm: 80 }, { back: 13 }, { to: RIGHT_HOME, route: 'xy' }]
   },
   {
     no: 'B12', missions: ['M12'], start: 'right', grid: 'J4', level: 'Khó',
     title: 'M12 Forest Elder — Dựng gậy chống & buộc dây vào cột',
     hints: ['Cây cổ thụ sát tường phải (cột J, hàng 4): tiếp cận hướng Đông, nâng tay cần 80°.', 'Lùi ra, đi xuống ~21 cm tới cột phía dưới, hướng Đông, hạ tay cần 10°.', 'Coi chừng va vào tường phải!'],
-    path: [{ approach: [470, 90], heading: EAST, run: 30 }, { arm: 80 }, { back: 13 }, { approach: [474, 139], heading: EAST, run: 20 }, { arm: 10 }, { arm: 80 }, { back: 9 }, { to: RIGHT_HOME }]
+    path: [{ approach: [470, 90], heading: EAST, run: 30, route: 'xy' }, { arm: 80 }, { back: 13 }, { approach: [474, 139], heading: EAST, run: 20, route: 'xy' }, { arm: 10 }, { arm: 80 }, { back: 9 }, { to: RIGHT_HOME, route: 'xy' }]
   },
   {
     no: 'B13', missions: ['M13'], dock: 'DOCK1', start: 'right', grid: 'J6', level: 'Trung bình',
     title: 'M13 Keystone Species — Đưa loài chủ chốt lên bệ phục hồi',
     hints: ['Bài này đặt mô hình M13 ở MINE dock (góc trên phải, cột J, hàng 6).', 'Từ Home phải đi thẳng hướng Bắc.', 'Hạ tay cần 10° để đặt loài chủ chốt lên bệ.'],
-    path: [{ arm: 80 }, { approach: [464, 40], heading: NORTH, run: 40 }, { arm: 10 }, { back: 17 }, { to: RIGHT_HOME }]
+    path: [{ arm: 80 }, { approach: [464, 40], heading: NORTH, run: 40, route: 'yx' }, { arm: 10 }, { back: 17 }, { to: RIGHT_HOME, route: 'xy' }]
   },
   {
     no: 'B14', missions: ['M14'], dock: 'DOCK3', start: 'right', grid: 'G1', level: 'Trung bình',
     title: 'M14 Seeds of Renewal — Gieo 4 hạt vào trạm',
     hints: ['Bài này đặt mô hình M14 ở CITY dock (mép dưới, cột G, hàng 1).', 'Từ Home phải đi sát mép dưới theo hướng Tây.', 'Hạ tay cần hẳn 10° để hạt chạm thảm (bonus). Hạ 30° chỉ được một nửa điểm.'],
-    path: [{ arm: 80 }, { approach: [334, 240], heading: WEST, run: 30 }, { arm: 10 }, { arm: 80 }, { back: 13 }, { to: RIGHT_HOME }]
+    path: [{ arm: 80 }, { approach: [334, 240], heading: WEST, run: 30, route: 'xy' }, { arm: 10 }, { arm: 80 }, { back: 13 }, { to: RIGHT_HOME, route: 'yx' }]
   },
   {
     no: 'B15', missions: ['M15'], dock: 'DOCK2', start: 'left', grid: 'F4', level: 'Khó',
     title: 'M15 Biocentric Architecture — Farm dock: mái tổ chim, giếng trời, cửa ủ phân + bonus',
     hints: ['Bài này đặt M15 ở FARM dock (giữa sân, cột F, hàng 4) — sát tổ ốc sên M10! Nhu cầu lớn nhất của Farm là CỬA Ủ PHÂN → +10 bonus.', 'Tiếp cận từ phía Nam theo hướng Bắc (đẩy giếng trời vào), nâng 80° (mái tổ chim), hạ 10° (mở cửa ủ phân).', 'M15 có biểu tượng 🚫: phải lùi robot ra khỏi mô hình trước khi hết trận, nếu không cả mission bằng 0.'],
-    path: [{ approach: [260, 135], heading: NORTH, run: 30 }, { arm: 80 }, { arm: 10 }, { arm: 80 }, { back: 13 }, { to: LEFT_HOME }]
+    path: [{ approach: [260, 135], heading: NORTH, run: 30, route: 'xy' }, { arm: 80 }, { arm: 10 }, { arm: 80 }, { back: 13 }, { to: LEFT_HOME, route: 'xy' }]
   },
   {
     no: 'B16', missions: [], start: 'left', grid: 'Cả sân', level: 'Thi đấu', minScore: 150,
     title: 'Trận đấu ảo — Run 1 từ Home trái, đạt ≥ 150 điểm',
     hints: ['Tất cả 15 mission đều được chấm. Chọn các mission gần Home trái và gom thành 1 lượt chạy.', 'Gợi ý chuỗi: M03 → M08 → M02 → về Home.', 'Robot phải về Home khi kết thúc, nếu không sẽ mất Precision Token.'],
     path: [
-      { approach: [58, 113], heading: WEST, run: 30 }, { arm: 10 }, { arm: 80 }, { back: 13 },
-      { approach: [148, 28], heading: NORTH, run: 40 }, { arm: 10 }, { arm: 80 }, { back: 17 },
-      { approach: [176, 140], heading: NORTH, run: 30 }, { arm: 10 }, { arm: 80 }, { back: 15 },
-      { to: LEFT_HOME }
+      { approach: [58, 113], heading: WEST, run: 30, route: 'xy' }, { arm: 10 }, { arm: 80 }, { back: 13 },
+      { approach: [148, 28], heading: NORTH, run: 40, route: 'yx' }, { arm: 10 }, { arm: 80 }, { back: 17 },
+      { approach: [176, 140], heading: NORTH, run: 30, route: 'xy' }, { arm: 10 }, { arm: 80 }, { back: 15 },
+      { to: LEFT_HOME, route: 'xy' }
     ]
   }
 ];
