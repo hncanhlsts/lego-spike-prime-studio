@@ -486,7 +486,7 @@ export function planBlocks(prefix, start, actions) {
 export const LEFT_HOME = [BIOGLOW_START_POSE.x, BIOGLOW_START_POSE.y];
 export const RIGHT_HOME = [RIGHT_START_POSE.x, RIGHT_START_POSE.y];
 
-// ---------- 16 BÀI CHẠY ẢO (B01–B15 theo từng mission + B16 trận đấu ảo) ----------
+// ---------- 17 BÀI CHẠY ẢO (B01–B15 theo từng mission + B16, B17 trận đấu ảo từ Home trái / phải) ----------
 // path: thao tác sinh lời giải mẫu · start: 'left' | 'right'
 export const BIOGLOW_LESSON_SPECS = [
   {
@@ -605,6 +605,18 @@ export const BIOGLOW_LESSON_SPECS = [
       { approach: [148, 28], heading: NORTH, run: 40, route: 'yx' }, { arm: 10 }, { arm: 80 }, { back: 17 },
       { approach: [176, 140], heading: NORTH, run: 30, route: 'yx' }, { arm: 10 }, { arm: 80 }, { back: 15 },
       { to: LEFT_HOME, route: 'xy' }
+    ]
+  },
+  {
+    no: 'B17', missions: [], start: 'right', grid: 'Cả sân', level: 'Thi đấu', minScore: 140,
+    title: 'Trận đấu ảo — Run từ Home phải, đạt ≥ 140 điểm',
+    hints: ['Tất cả 15 mission đều được chấm. Dùng bài này để chạy thử các Run xuất phát từ Home PHẢI (Run 3, Run 4).', 'Gợi ý chuỗi: M11 → M12 → M07 → về Home phải.', 'Robot phải về Home (trái hoặc phải) khi kết thúc, nếu không sẽ mất Precision Token.'],
+    path: [
+      { approach: [365, 128], heading: WEST, run: 30, route: 'xy' }, { arm: 10 }, { arm: 80 }, { back: 13 },
+      { approach: [470, 90], heading: EAST, run: 30, route: 'yx' }, { arm: 80 }, { back: 13 },
+      { approach: [474, 139], heading: EAST, run: 20, route: 'xy' }, { arm: 10 }, { arm: 80 }, { back: 9 },
+      { approach: [399, 26], heading: NORTH, run: 40, route: 'yx' }, { back: 17 },
+      { to: RIGHT_HOME, route: 'yx' }
     ]
   }
 ];

@@ -703,7 +703,7 @@ function buildBioglowLessons() {
       mapType: 'fll_bioglow',
       objective: ids.length
         ? `${rules.map((r) => `${r.id}: ${r.howTo}`).join(' ')} Xuất phát từ Home ${spec.start === 'right' ? 'PHẢI' : 'TRÁI'} và kết thúc trong Home.`
-        : `Tự lập chiến thuật một lượt chạy từ Home trái: cả 15 mission đều được chấm, cần đạt ≥ ${spec.minScore} điểm và kết thúc trong Home.`,
+        : `Tự lập chiến thuật một lượt chạy từ Home ${spec.start === 'right' ? 'phải' : 'trái'}: cả 15 mission đều được chấm, cần đạt ≥ ${spec.minScore} điểm và kết thúc trong Home.`,
       requirements: [
         `Xuất phát trong Launch Area ${spec.start === 'right' ? 'PHẢI (xanh)' : 'TRÁI (đỏ)'}.`,
         'Dùng khối "C go shortest path to position" để hạ/nâng tay cần.',

@@ -49,7 +49,7 @@ function MatchPlanner() {
   const addFromSim = () => {
     const last = readJson(LAST_SIM_RUN_KEY, null);
     if (!last) {
-      setNote('Chưa có lượt chạy nào trên thảm BIOGLOW. Hãy chạy một bài B01–B16 trên sa bàn trước.');
+      setNote('Chưa có lượt chạy nào trên thảm BIOGLOW. Hãy chạy một bài B01–B17 trên sa bàn trước.');
       return;
     }
     save({ ...plan, runs: [...plan.runs, { id: Date.now(), ...last }] });
