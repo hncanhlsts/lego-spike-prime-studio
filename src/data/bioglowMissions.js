@@ -34,7 +34,7 @@ const front = (s) => {
   const r = (s.angle * Math.PI) / 180;
   return { x: s.x + Math.cos(r) * FRONT_PX, y: s.y + Math.sin(r) * FRONT_PX };
 };
-const angDiff = (a, b) => Math.abs(((a - b + 540) % 360) - 180);
+const angDiff = (a, b) => Math.abs(((((a - b) % 360) + 540) % 360) - 180);
 
 export const HOME_LEFT_BOX = { x: 30, y: 168, w: 96, h: 96 };
 export const HOME_RIGHT_BOX = { x: 394, y: 168, w: 96, h: 96 };
@@ -399,7 +399,7 @@ function evaluateBioglowRunInner(run, opts = {}) {
 
 // ---------- BỘ LẬP ĐƯỜNG ĐI (dùng để sinh LỜI GIẢI MẪU) ----------
 // Sinh chuỗi khối từ danh sách thao tác. Quy ước góc: 0 = Đông, 90 = Nam, -90 = Bắc, 180 = Tây (rẽ phải = góc dương).
-const norm = (a) => ((a + 540) % 360) - 180;
+const norm = (a) => ((((a % 360) + 540) % 360) - 180); // an toàn cả khi góc cộng dồn rất âm
 const r1 = (v) => Math.round(v * 2) / 2;
 export function planBlocks(prefix, start, actions) {
   let { x, y, angle } = start;
