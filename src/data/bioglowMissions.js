@@ -492,8 +492,8 @@ export const BIOGLOW_LESSON_SPECS = [
   {
     no: 'B01', missions: ['M01'], start: 'left', grid: 'F1', level: 'Trung bình',
     title: 'M01 Drone Survey — Phóng drone & lật bản đồ LiDAR',
-    hints: ['Đi gần sát mép dưới thảm, hướng Đông, tới vùng M01 (cột F, hàng 1).', 'Nâng tay cần lên 80° để phóng drone.', 'Bonus: quay lên hướng Bắc tại ô vuông nghiêng cạnh vạch đen, hạ tay cần xuống 10°.'],
-    path: [{ approach: [250, 240], heading: EAST, run: 30, route: 'xy' }, { arm: 80 }, { approach: [272, 212], heading: NORTH, run: 0, route: 'xy' }, { arm: 10 }, { to: LEFT_HOME, route: 'yx' }]
+    hints: ['M01 nằm sát mép dưới (cột F, hàng 1). Đừng chạy dọc thân drone — hãy đi lên khoảng 14 cm rồi sang Đông tới ngay phía trên M01.', 'Quay hướng Nam, tiến vào khoảng 12 cm, nâng tay cần lên 80° để phóng drone.', 'Bonus: lùi ra, sang phải khoảng 10 cm, quay hướng Bắc ngay tại ô vuông nghiêng cạnh vạch đen rồi hạ tay cần xuống 10°.'],
+    path: [{ approach: [250, 236], heading: SOUTH, run: 28, route: 'yx' }, { arm: 80 }, { back: 5 }, { approach: [272, 212], heading: NORTH, run: 0, route: 'yx' }, { arm: 10 }, { to: LEFT_HOME, route: 'yx' }]
   },
   {
     no: 'B02', missions: ['M02'], start: 'left', grid: 'D3', level: 'Dễ',
@@ -582,7 +582,7 @@ export const BIOGLOW_LESSON_SPECS = [
     no: 'B13', missions: ['M13'], dock: 'DOCK1', start: 'right', grid: 'J6', level: 'Trung bình',
     title: 'M13 Keystone Species — Đưa loài chủ chốt lên bệ phục hồi',
     hints: ['Bài này đặt mô hình M13 ở MINE dock (góc trên phải, cột J, hàng 6).', 'Từ Home phải đi thẳng hướng Bắc.', 'Hạ tay cần 10° để đặt loài chủ chốt lên bệ.'],
-    path: [{ arm: 80 }, { approach: [464, 40], heading: NORTH, run: 40, route: 'yx' }, { arm: 10 }, { back: 17 }, { to: RIGHT_HOME, route: 'xy' }]
+    path: [{ arm: 80 }, { approach: [448, 40], heading: NORTH, run: 40, route: 'yx' }, { arm: 10 }, { back: 17 }, { to: RIGHT_HOME, route: 'xy' }]
   },
   {
     no: 'B14', missions: ['M14'], dock: 'DOCK3', start: 'right', grid: 'G1', level: 'Trung bình',
@@ -603,7 +603,7 @@ export const BIOGLOW_LESSON_SPECS = [
     path: [
       { approach: [58, 113], heading: WEST, run: 30, route: 'xy' }, { arm: 10 }, { arm: 80 }, { back: 13 },
       { approach: [148, 28], heading: NORTH, run: 40, route: 'yx' }, { arm: 10 }, { arm: 80 }, { back: 17 },
-      { approach: [176, 140], heading: NORTH, run: 30, route: 'xy' }, { arm: 10 }, { arm: 80 }, { back: 15 },
+      { approach: [176, 140], heading: NORTH, run: 30, route: 'yx' }, { arm: 10 }, { arm: 80 }, { back: 15 },
       { to: LEFT_HOME, route: 'xy' }
     ]
   }
